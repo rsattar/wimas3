@@ -20,8 +20,6 @@
             <mx:Label styleName="inputHeading" text="Server Type: "/>
             <mx:ComboBox id="serverTarget" editable="false" enabled="{!_sessionStarted}" labelField="label" change="updateMockServerOptions();">
                 <mx:dataProvider>
-                    <mx:Object label="Dev" value="dev"/>
-                    <mx:Object label="QA" value="qa"/>
                     <mx:Object label="Mock Server" value="mock"/>
                     <mx:Object label="Production" value="prod"/>
                 </mx:dataProvider>
