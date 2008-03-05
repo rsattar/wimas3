@@ -31,9 +31,7 @@
             <mx:Label styleName="inputHeading" text="DevId:" />
             <mx:ComboBox id="textDevId" editable="true" enabled="{!_sessionStarted}" labelField="label">
                 <mx:dataProvider>
-                    <mx:Object label="sh1CDedRlteA1dqe (Dev &amp; QA)" value="sh1CDedRlteA1dqe"/>
-                    <!--<mx:Object label="co1-aGYgRvsTuOey (QA)" value="co1-aGYgRvsTuOey"/>-->
-                    <!--<mx:Object label="sb1J_dobhs11T7y2 (Stephanie [SAWS])" value="sb1J_dobhs11T7y2"/>-->
+                    <mx:Object label="Get a devId from http://developer.aim.com/manageKeys.jsp" value="xxxxxxxxxx"/>
                 </mx:dataProvider>
             </mx:ComboBox>
         </mx:HBox>
