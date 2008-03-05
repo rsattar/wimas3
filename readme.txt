@@ -6,15 +6,15 @@ wimas3
 wimas3_testing
     Stuff for testing wimas3.swc.
 
-wimas3_testing/unit_testing
+wimas3 Unit Testing
     FlexUnit (http://code.google.com/p/as3flexunitlib/) unit tests.  
     These really need to be fleshed out.  How embarrassing.  
 
-wimas3_testing/wimas3_mock_server
+wimas3_mock_server
     If you don't want to or can't connect to a real server, use the Mock Server.  
     It's also used for unit testing.
 
-wimas3_testing/wimas3_test_client
+Wimas3 Test Client
     A Flex-based test client.  It's very incomplete (no support for sending IMs).  
     We use it mostly for connectivity sanity checks.  The actual client we're 
     working on is pure AS3.  Also, 
