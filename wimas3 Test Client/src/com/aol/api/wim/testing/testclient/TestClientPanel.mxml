@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:HBox xmlns:mx="http://www.adobe.com/2006/mxml"
+    addedToStage="initPanel();" xmlns:testclient="com.aol.api.wim.testing.testclient.*">
+    <mx:Script source="TestClientPanel_.as" />
+    <mx:Style>
+        .inputHeading
+        {
+            font-weight:bold;
+            text-align:right;
+        }
+        .errorHeading
+        {
+            font-weight:bold;
+            text-align:right;
+            color: "0xcc0000";
+        }
+    </mx:Style>
+    <mx:VBox width="25%">
+        <mx:HBox verticalAlign="middle">
+            <mx:Label styleName="inputHeading" text="Server Type: "/>
+            <mx:ComboBox id="serverTarget" editable="false" enabled="{!_sessionStarted}" labelField="label" change="updateMockServerOptions();">
+                <mx:dataProvider>
+                    <mx:Object label="Dev" value="dev"/>
+                    <mx:Object label="QA" value="qa"/>
+                    <mx:Object label="Mock Server" value="mock"/>
+                    <mx:Object label="Production" value="prod"/>
+                </mx:dataProvider>
+            </mx:ComboBox>
+        </mx:HBox>
+        <mx:HBox verticalAlign="middle">
+            <mx:Label styleName="inputHeading" text="DevId:" />
+            <mx:ComboBox id="textDevId" editable="true" enabled="{!_sessionStarted}" labelField="label">
+                <mx:dataProvider>
+                    <mx:Object label="sh1CDedRlteA1dqe (Dev &amp; QA)" value="sh1CDedRlteA1dqe"/>
+                    <!--<mx:Object label="co1-aGYgRvsTuOey (QA)" value="co1-aGYgRvsTuOey"/>-->
+                    <!--<mx:Object label="sb1J_dobhs11T7y2 (Stephanie [SAWS])" value="sb1J_dobhs11T7y2"/>-->
+                </mx:dataProvider>
+            </mx:ComboBox>
+        </mx:HBox>
+        <mx:Label id="userPassErrorCaption" styleName="errorHeading" text="Incorrect login/pass. Try again:" visible="false" includeInLayout="{userPassErrorCaption.visible}"/>
+        <mx:HBox verticalAlign="middle">
+            <mx:Label styleName="inputHeading" text="Username:" />
+            <mx:TextInput id="textUsername" text="shawntest15"  enter="signOnToggle();" enabled="{!_sessionStarted}"/>
+        </mx:HBox>
+        <mx:HBox verticalAlign="middle">
+            <mx:Label styleName="inputHeading" text="Password:" />
+            <mx:TextInput id="textPassword" text="pokemon" displayAsPassword="true" enter="signOnToggle();" enabled="{!_sessionStarted}"/>
+        </mx:HBox>
+        <mx:VBox id="captchaContainer" visible="false" includeInLayout="{captchaContainer.visible}">
+            <mx:Label styleName="inputHeading" text="Please enter words below:" />
+            <mx:Image width="240" height="100" id="captchaImage"/>
+            <mx:TextInput id="captchaInput" text=""  enter="signOnToggle();" enabled="{!_sessionStarted}"/>
+        </mx:VBox>
+        <mx:HBox>
+            <mx:Button id="toggleSignOnButton" label="Sign On" click="signOnToggle();" />
+            <mx:CheckBox id="toggleCaptcha" label="Force Captcha challenge" enabled="{!_sessionStarted}"/>
+        </mx:HBox>
+        <mx:VBox id="mockServerOptions" visible="{_useMockServer}" includeInLayout="{_useMockServer}">
+            <mx:Label styleName="inputHeading" text="Mock Server Options for next fetch:" />
+            <mx:CheckBox id="forceFetchTimeout" label="Force a timeout on next fetchEvents"/>
+            <mx:CheckBox id="simulateBL" selected="true" label="BL event" enabled="{!forceFetchTimeout.selected}"/>
+            <mx:CheckBox id="simulateIM" label="IM event" enabled="{!forceFetchTimeout.selected}"/>
+            <mx:CheckBox id="simulateMyInfo" label="MyInfo event" enabled="{!forceFetchTimeout.selected}"/>
+            <mx:CheckBox id="simulatePresence" label="Presence event" enabled="{!forceFetchTimeout.selected}"/>
+        </mx:VBox>
+        <mx:Label text="Buddy List" />
+        <mx:Tree id="buddyListTree" width="100%" height="300" 
+            labelField="label" showRoot="false" 
+            dataDescriptor="{blDataDescriptor}" dataProvider="{_blObjectTree}"
+            enabled="{_sessionStarted}"/>
+        <mx:HBox>
+            <mx:TextInput id="txtAddBuddy"  enabled="{_sessionStarted}"/>
+            <mx:Button label="Add Buddy" click="onAddBuddyClick();" enabled="{_sessionStarted}"/>
+        </mx:HBox>
+        <mx:HBox>
+            <mx:TextInput id="txtImInput"  enabled="{_sessionStarted}"/>
+            <mx:Button label="Send IM" click="onSendIMClick();" enabled="{_sessionStarted}"/>
+        </mx:HBox>
+        <mx:HBox>
+	        <mx:Script><![CDATA[
+    	        import flash.system.Capabilities;
+    	
+    	        private function reportVersion():String {
+    	            if (Capabilities.isDebugger) {
+    	                return "Debugger version of Flash Player";
+    	            } else {
+    	                return "Flash Player";
+    	            }
+    	        }
+    	        private function reportType():String {
+    	            return Capabilities.playerType + " (" + Capabilities.version + ")";
+    	        }
+    	    ]]></mx:Script>
+    	    <mx:Label text="{reportVersion()}"/>
+    	    <mx:Label text="{reportType()}"/>
+	    </mx:HBox>
+	    <!-- hide for now -->
+        <mx:Button label="Destroy Auth Token (ClientLogin logout)" click="onDestroyAuthToken();" includeInLayout="false" visible="false"/>
+    </mx:VBox>
+    <mx:VBox width="75%" height="100%">
+        <mx:TextArea id="output" 
+            width="100%" height="100%" 
+            editable="false"
+            wordWrap="false"
+            backgroundColor="#eeeeee"
+            />
+        <mx:HBox horizontalAlign="right" width="100%">
+            <mx:ProgressBar id="fetchProgress"
+                width="160"
+                minimum="0"
+                label="FetchEvents"
+                mode="manual"
+                />
+            <mx:Spacer width="100%"/>
+            <mx:Button label="Clear" click="output.text=''"/>
+        </mx:HBox>
+    </mx:VBox>
+    
+    <testclient:BuddyListDataDescriptor id="blDataDescriptor" />
+</mx:HBox>
