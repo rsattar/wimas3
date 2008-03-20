@@ -53,5 +53,9 @@ package com.aol.api.wim.data.types {
          * Indicates that we have received an offline instant message.
          */
         public static const OFFLINE_IM:String   = "offlineIM";
+        /**
+         * Indicates that someone has added the user to their list. 
+         */
+        public static const ADDED_TO_LIST:String = "userAddedToBuddyList";
     }
 }

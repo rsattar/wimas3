@@ -52,7 +52,10 @@ package com.aol.api.openauth
         private var clientName:String            = null;
         private var clientVersion:String         = null;   
         
-        private var _hostTime:Number              = 0;
+        // Time according to host.
+        private var _hostTime:Number             = 0;
+        // Time according to client.
+        private var _clientTime:Number           = 0;   
         
         
         /**
@@ -183,9 +186,6 @@ package com.aol.api.openauth
             var queryString:String = "a="+token.a;
             queryString += "&devId="+encodeStrPart(devId);
             queryString += "&f=xml";
-
-            var now:Number = new Date().getTime(); 
-            queryString += "&ts="+(uint(now / 1000) + (hostTime - now));
                         
             var encodedQuery:String = encodeURIComponent(queryString);
             
@@ -270,7 +270,8 @@ package com.aol.api.openauth
             challengeUrl     = xml.data.challenge.url.text();
             info             = xml.data.challenge.info.text();
             sessionSecret    = xml.data.sessionSecret.text();
-            _hostTime         = Number(xml.data.hostTime.text());
+            _hostTime        = Number(xml.data.hostTime.text());
+            _clientTime      = Number(new Date().getTime()/1000); 
             
             // Issue appropriate event.  If we're online notify as such, otherwise dispatch challenge
             // request or error condition.
@@ -282,7 +283,7 @@ package com.aol.api.openauth
                 // Create authDigest of password and sessionSecret. This is used as a key for signing future requests.
                 var sessionKey:String = new HMAC().SHA256_S_Base64(password, sessionSecret);
                 //_logger.debug("Digest of SHA256(password, sessionSecret) is: "+sessionKey);
-                dispatchEvent(new AuthEvent(AuthEvent.LOGIN, Number(statusCode), statusText, Number(statusDetailCode), new AuthToken(tokenStr, Number(expiresIn), hostTime), sessionKey, challengeContext, info));
+                dispatchEvent(new AuthEvent(AuthEvent.LOGIN, Number(statusCode), statusText, Number(statusDetailCode), new AuthToken(tokenStr, Number(expiresIn), hostTime, clientTime), sessionKey, challengeContext, info));
             }
             else {
                 dispatchEvent(new AuthEvent(AuthEvent.ERROR, Number(statusCode), statusText, Number(statusDetailCode), null, null, challengeContext, info));
@@ -314,7 +315,7 @@ package com.aol.api.openauth
             tokenStr         = null;
             challengeContext = null;
             sessionSecret    = null;
-        }  
+        } 
 
         public function createURLLoader():ResultLoader {
             return new _loaderClass();
@@ -323,5 +324,9 @@ package com.aol.api.openauth
         public function get hostTime():Number {
             return _hostTime;
         }
+        
+        public function get clientTime():Number {
+            return _clientTime;
+        }        
     }
 }

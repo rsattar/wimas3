@@ -26,14 +26,16 @@ package com.aol.api.openauth
         private var _expiresIn:Number   =   0;
         private var _expirationTime:Date  =   null;
         private var _hostTime:Number = 0;
+        private var _clientTime:Number = 0;
 
-        public function AuthToken(a:String, expiresIn:Number, hostTime:Number):void {
+        public function AuthToken(a:String, expiresIn:Number, hostTime:Number, clientTime:Number):void {
             _a = a;
             _expiresIn = expiresIn;
             _expirationTime = new Date();
             // Expiration time is [now] + expiry, in seconds
             _expirationTime.time += 1000 * expiresIn;
             _hostTime = hostTime;
+            _clientTime = clientTime;
         }
         
         /**
@@ -63,5 +65,12 @@ package com.aol.api.openauth
         public function get hostTime():Number {
             return _hostTime;
         } 
+        
+        /** 
+         * Returns the time in seconds since epoch for the client which requested the token.
+         */
+        public function get clientTime():Number {
+            return _clientTime;
+        }         
     }
 }

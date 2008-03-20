@@ -28,6 +28,7 @@ package com.aol.api.wim {
     import com.aol.api.wim.data.types.AuthChallengeType;
     import com.aol.api.wim.data.types.FetchEventType;
     import com.aol.api.wim.data.types.SessionState;
+    import com.aol.api.wim.events.AddedToBuddyListEvent;
     import com.aol.api.wim.events.AuthChallengeEvent;
     import com.aol.api.wim.events.BuddyListEvent;
     import com.aol.api.wim.events.DataIMEvent;
@@ -466,7 +467,11 @@ package com.aol.api.wim {
          * 
          */        
         private function onAuthSignOn(evt:AuthEvent):void {
-            
+            if(sessionState != SessionState.AUTHENTICATING)
+            {
+                signOff();
+                return;
+            }
             if(evt.statusCode == 200) {
                 _authenticated = true;
                 _challengeAnswer = null;
@@ -480,7 +485,11 @@ package com.aol.api.wim {
             this.sessionState = SessionState.OFFLINE;
         }
         private function onAuthChallenge(evt:AuthEvent):void {
-            
+            if(sessionState != SessionState.AUTHENTICATING)
+            {
+                signOff();
+                return;
+            }
             _logger.debug("AuthChallenge");
             var challenge:AuthChallenge = null;
             if(evt.statusDetailCode==3015) {
@@ -507,6 +516,11 @@ package com.aol.api.wim {
             this.sessionState = SessionState.AUTHENTICATION_CHALLENGED;
         }
         private function onAuthError(evt:AuthEvent):void {
+            if(sessionState != SessionState.AUTHENTICATING)
+            {
+                signOff();
+                return;
+            }
             
             _logger.error("AuthError");
             this.sessionState = SessionState.AUTHENTICATION_FAILED;
@@ -551,8 +565,9 @@ package com.aol.api.wim {
             queryString += "&f=amf3";
             queryString += "&k="+_devId;
             
-            var now:Number = new Date().getTime();           
-            queryString += "&ts="+(uint(now / 1000) + (_token.hostTime - now));
+            var now:Number = new Date().getTime() / 1000;           
+            _logger.debug("Host Time: {0}, Now: {1}", _token.hostTime, now);
+            queryString += "&ts="+(_token.hostTime + Math.floor(now - _token.clientTime) as uint);
             
             var encodedQuery:String = escape(queryString);
             
@@ -584,6 +599,12 @@ package com.aol.api.wim {
         }
         
         private function startSessionResponse(evt:Event):void {
+            if(sessionState != SessionState.STARTING)
+            {
+                //umm....something is messed up. Maybe the user cancelled? bail!
+                signOff();
+                return;
+            }
             var loader:URLLoader = evt.target as ResultLoader;
             //_logger.debug("StartSession Response XML: "+String(loader.data));
             var response:Object = getResponseObject(loader.data);
@@ -646,9 +667,17 @@ package com.aol.api.wim {
          */
         protected function doSignOff(evt:SessionEvent):void {
             
-            var query:String = generateSignOffURL();
-            _logger.debug("EndSessionQuery: "+query);
-            sendRequest(query, signOffResponse);
+            if(sessionState == SessionState.ONLINE || 
+               sessionState == SessionState.STARTING )
+            {
+                var query:String = generateSignOffURL();
+                _logger.debug("EndSessionQuery: "+query);
+                sendRequest(query, signOffResponse);
+            }
+            if(sessionState != SessionState.ONLINE)
+            {
+                clearSession();
+            }
         }
         
         /**
@@ -965,6 +994,19 @@ package com.aol.api.wim {
                         var offIM:IM = _parser.parseIM(eventData, _myInfo, true);
                         dispatchEvent(new IMEvent(IMEvent.IM_RECEIVED, offIM, true, true));
                         break;
+                    }
+                    case (FetchEventType.ADDED_TO_LIST) : {
+                        var aimId:String = eventData.requester;
+                        var message:String = eventData.msg;
+                        var authRequested:Boolean = eventData.authRequested;
+                        if(aimId)
+                        {
+                            dispatchEvent(new AddedToBuddyListEvent(AddedToBuddyListEvent.ADDED_TO_LIST, aimId, message, authRequested, true, true));
+                        }
+                        else
+                        {
+                            _logger.warn("Received '{0}' event, but there is no aimId", type);
+                        }
                     }
                     default: {
                         _logger.warn("Received an unknown type of event, type is: "+type);
