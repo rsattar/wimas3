@@ -36,6 +36,7 @@ private var _authToken:AuthToken;
 private var _sessionKey:String;
 private var _fetchTimer:Timer;
 private var _fetchTimerTicksRemaining:int;
+private var _captchaImageDummyRequestId:int = 0;
         
 // Constants defining server URLs /////////////////////////////////////////////////////
 protected static const WIM_BASE:String      =   "http://api.oscar.aol.com/";
@@ -333,8 +334,9 @@ private function onAuthChallenge(evt:AuthChallengeEvent):void {
         case AuthChallengeType.CAPTCHA_CHALLENGE:
             captchaContainer.visible = true;
             // Get captcha image
-            _logger.debug("Loading captcha image: "+evt.challenge.captchaImageUrl);
-            captchaImage.load(evt.challenge.captchaImageUrl);
+            // Add a dummy requestId to the captcha url, so the browser never caches the image (for IE)
+            _logger.debug("Loading captcha image: "+evt.challenge.captchaImageUrl+"&fakeParam="+_captchaImageDummyRequestId);
+            captchaImage.load(evt.challenge.captchaImageUrl+"&fakeParam="+_captchaImageDummyRequestId++);
             break;
         default:
             _logger.debug("Unhandled auth challenge: "+evt.challengeType);
