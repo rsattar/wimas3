@@ -48,9 +48,10 @@ package com.aol.api.wim.transactions
                 "&aimsid=" + _session.aimsid +
                 "&r=" + requestId +
                 "&t=" + encodeURIComponent(evt.im.recipient.aimId) +
-                "&message=" + escape(evt.im.message) + 
+                "&message=" + encodeURIComponent(evt.im.message) + 
                 "&autoResponse=" + evt.im.isAutoResponse + 
-                "&offlineIM=" + evt.im.isOfflineMessage;
+                "&offlineIM=" + evt.im.isOfflineMessage +
+                "&comscoreChannel=" + _session.comScoreId;
             _logger.debug("SendIMQuery: " + _session.apiBaseURL + method + query);
             sendRequest(_session.apiBaseURL + method + query);            
         }

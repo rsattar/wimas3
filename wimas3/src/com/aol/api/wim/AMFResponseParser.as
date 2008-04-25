@@ -31,6 +31,7 @@ package com.aol.api.wim {
             var u:User = new User();
             u.aimId             = data.aimId;
             u.displayId         = data.displayId;
+            u.friendlyName      = data.friendly;
             u.state             = data.state;
             u.onlineTime        = data.onlineTime;
             u.awayTime          = data.awayTime; // in minutes?
@@ -41,6 +42,7 @@ package com.aol.api.wim {
             u.buddyIconURL      = data.buddyIcon;
             u.presenceIconURL   = data.presenceIcon
             u.capabilities      = parseCapabilities(data.capabilities);
+            u.countryCode       = data.ipCountry;
             return u;
         }
         
@@ -112,8 +114,7 @@ package com.aol.api.wim {
             var caps:Array = new Array();
             
             if(data) {
-                // FIXME: Parsing capabilities is not tested!
-                for each(var cap:Number in data) {
+                for each(var cap:String in data) {
                     //caps.push(capXML.capability.text());
                     caps.push(cap);
                 }

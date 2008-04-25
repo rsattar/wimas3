@@ -61,7 +61,7 @@ package com.aol.api.wim.data.types {
 		/**
 		 * User is online but not available to IM at the momment.
 		 */
-	    public static const NOT_AVAILABLE:String = "not_available";
+	    public static const NOT_AVAILABLE:String = "na";
 	    
 	    /**
 	     * User is online but busy with another activity.
@@ -73,7 +73,7 @@ package com.aol.api.wim.data.types {
 	     * Historically, this state was only part of the ICQ process for adding buddies.
 	     * This state does not historically exist in AIM clients.
 	     */
-	    public static const UNDEFINED:String = "undefined";
+	    public static const UNKNOWN:String = "unknown";
 
 	}
 }

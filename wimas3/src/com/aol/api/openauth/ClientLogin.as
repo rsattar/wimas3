@@ -51,11 +51,14 @@ package com.aol.api.openauth
         private var devId:String                 = null;
         private var clientName:String            = null;
         private var clientVersion:String         = null;   
+        private var language:String              = null;
         
         // Time according to host.
         private var _hostTime:Number             = 0;
         // Time according to client.
         private var _clientTime:Number           = 0;   
+        
+        private var _icqEmailRetry:Boolean       = false;
         
         
         /**
@@ -84,10 +87,11 @@ package com.aol.api.openauth
          *                         If none is provided, a new <code>Log</code> is created with just traces to the console.
          * 
          */        
-        public function ClientLogin(dev:String, clientName:String, clientVersion:String, logger:ILog=null, authBaseURL:String=null):void {
+        public function ClientLogin(dev:String, clientName:String, clientVersion:String, logger:ILog=null, authBaseURL:String=null, language:String="en-us"):void {
             this.devId = dev;
             this.clientName = clientName;
             this.clientVersion = clientVersion;
+            this.language = language;
             _logger = logger ? logger : new Log("ClientLogin");
             
             if(authBaseURL && authBaseURL != "") {
@@ -105,13 +109,26 @@ package com.aol.api.openauth
          * @param p The password
          * @param challengeAnswer Optional challenge answer. Provide this if presented with an <code>AuthEvent.CHALLENGE</code>.
          * @param forceCaptcha Optional. If true, will send a "forceRateLimit=yes" param, forcing a captcha challenge. Default is false.
+         * @param getLongTermToken Optional. Uses the screenname and password to requests a long-term token, which can be saved to start another session in the future without u/p.
          * 
          */        
-        public function signOn(s:String, p:String, challengeAnswer:String=null, forceCaptcha:Boolean=false):void {
+        public function signOn(s:String, p:String, challengeAnswer:String=null, forceCaptcha:Boolean=false, getLongTermToken:Boolean = false):void {
             _logger.info("ClientLogin baseURL: "+this.apiBaseURL);
             var loader:ResultLoader = createURLLoader();
             //_logger.debug("AuthBaseURL: " + apiBaseURL + ON_METHOD);
-            var theRequest:URLRequest = new URLRequest(apiBaseURL + ON_METHOD);
+            
+            var url:String = apiBaseURL + ON_METHOD;
+
+            // Package up all params in query format and SHA256 sign resulting buffer.
+            screenName         = s;
+            
+            if (isUIN(screenName)) {
+                password = truncateICQPassword(p);
+            } else {
+                password = p;
+            }
+                                                
+            var theRequest:URLRequest = new URLRequest(url);
             theRequest.method = URLRequestMethod.POST;
             
             if(!challengeAnswer) {
@@ -119,11 +136,15 @@ package com.aol.api.openauth
                 reset();
             }
             
-            // Package up all params in query format and SHA256 sign resulting buffer.
-            screenName         = s;
-            password           = p;
-            
             var vars:URLVariables = new URLVariables();
+
+            // This parameter asks KDC to treat the loginId as an ICQ email address, not an SNS address.
+            // At some point, probably by June of 2008, this will no longer be necessary because they are going
+            // to do this re-check within KDC so that clients don't have to. 
+            if(_icqEmailRetry && (s.search('@') > 0)) {
+                vars.idType = "ICQ";
+                password = truncateICQPassword(p);
+            }
             
             // Set up params in alphabetical order
             // Captcha word
@@ -141,7 +162,7 @@ package com.aol.api.openauth
             
             vars.devId = devId;
             vars.f = "xml";
-            vars.language = "en-us";
+            vars.language = language;
             
             if(forceCaptcha) {
                 vars.forceRateLimit = "yes";
@@ -158,6 +179,10 @@ package com.aol.api.openauth
             }
             // Token type
             //+ "&tokenType=shortterm";
+            if (getLongTermToken)
+            {
+                vars.tokenType = "longterm";
+            }
             
             // "We hates the IE!  Hates it, we do!"
             // This flag tells the auth host to use special headers to prevent IE/Flash from 
@@ -225,6 +250,19 @@ package com.aol.api.openauth
             r = r.replace(/_/, "%5F");
             return r;
         }
+
+        private function isUIN(login:String):Boolean {
+            return !isNaN(Number(login));
+        }
+        
+        /**
+         * ICQ passwords cannot be longer than 8 characters but some ICQ users
+         * don't know that.  They type longer passwords which need to be
+         * truncated.  Would be nice if the host handled this...
+         */ 
+        private function truncateICQPassword(password:String):String {
+            return password.substr(0, 8);
+        }
         
         /**
          * Generic i/o handler for any host requests.
@@ -277,7 +315,17 @@ package com.aol.api.openauth
             // request or error condition.
             //_logger.debug("login status is " + statusCode);
             // Send a challenge event, if needed
-            if (statusDetailCode == "3011" || statusDetailCode == "3012" || statusDetailCode == "3015") {
+            
+            
+            // If we get a 3011 on an ONS email address, try again as an ICQ email address.
+            // At some point, probably by June of 2008, this will no longer be necessary because they are going
+            // to do this re-check within KDC so that clients don't have to.             
+            if ((statusDetailCode == "3011") && (screenName.search('@') > 0) && !_icqEmailRetry) {
+                _icqEmailRetry = true;
+                _logger.info("ONS signin failed.  Retrying as ICQ email address.");
+                signOn(screenName, password);
+            } else if (statusDetailCode == "3011" || statusDetailCode == "3012" || statusDetailCode == "3015") {
+                _icqEmailRetry = false;
                 dispatchEvent(new AuthEvent(AuthEvent.CHALLENGE, Number(statusCode), statusText, Number(statusDetailCode), null, null, challengeContext, challengeUrl, info));
             } else if (statusCode == "200") {
                 // Create authDigest of password and sessionSecret. This is used as a key for signing future requests.

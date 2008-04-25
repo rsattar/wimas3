@@ -78,12 +78,17 @@ package com.aol.api.wim.transactions {
          *  
          * @param query The URL to load
          * @param requestMethod GET or POST
+         * @context See ResultLoader.  Only honored if ResultLoader is the loader type in use.
          * 
          */
-        protected function sendRequest(query:String, requestMethod:String = "GET"):void {
+        protected function sendRequest(query:String, requestMethod:String = "GET", context:Object=null):void {
             var theRequest:URLRequest = new URLRequest(query);
             var loader:URLLoader = _session.createURLLoader();
-
+            
+            if (loader is ResultLoader) {
+                ResultLoader(loader).context = context;
+            }
+            
             theRequest.method = requestMethod;
             
             loader.addEventListener(Event.COMPLETE, requestComplete, false, 0, true);
@@ -130,7 +135,7 @@ package com.aol.api.wim.transactions {
          */
         protected function requestComplete(evt:Event):void {
             var loader:URLLoader = URLLoader(evt.target);
-            _response = getResponseObject(loader.data);
+            _response = _session.getResponseObject(loader.data);
         }
         
         // Generic IO Error Event Listener

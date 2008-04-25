@@ -14,6 +14,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 package com.aol.api.wim {
     
+    import com.aol.api.Version;
     import com.aol.api.logging.ILog;
     import com.aol.api.logging.Log;
     import com.aol.api.openauth.AuthToken;
@@ -39,10 +40,15 @@ package com.aol.api.wim {
     import com.aol.api.wim.events.UserEvent;
     import com.aol.api.wim.interfaces.IResponseParser;
     import com.aol.api.wim.transactions.AddBuddy;
+    import com.aol.api.wim.transactions.GetMemberDirectory;
     import com.aol.api.wim.transactions.GetPresence;
     import com.aol.api.wim.transactions.RemoveBuddy;
+    import com.aol.api.wim.transactions.ReportSPIM;
     import com.aol.api.wim.transactions.ResultLoader;
+    import com.aol.api.wim.transactions.SearchMemberDirectory;
     import com.aol.api.wim.transactions.SendIM;
+    import com.aol.api.wim.transactions.SetBuddyAttribute;
+    import com.aol.api.wim.transactions.SetPermitDeny;
     import com.aol.api.wim.transactions.SetState;
     import com.aol.api.wim.transactions.SetTyping;
     
@@ -51,12 +57,15 @@ package com.aol.api.wim {
     import flash.events.IEventDispatcher;
     import flash.events.IOErrorEvent;
     import flash.events.TimerEvent;
+    import flash.net.ObjectEncoding;
     import flash.net.URLLoader;
     import flash.net.URLLoaderDataFormat;
     import flash.net.URLRequest;
     import flash.net.URLRequestMethod;
     import flash.utils.ByteArray;
     import flash.utils.Timer;
+    
+    // import mx.utils.HexEncoder;   
         
     /**
      * This object represents the main integration point for a client application.
@@ -192,6 +201,13 @@ package com.aol.api.wim {
         protected var _devId:String                 =   null;
         
         /**
+        * Directs clientLogin to get a long term token, suitable for storage to start sessions in the future.
+        * 
+        * @private
+        */
+        protected var _getLongTermToken:Boolean     = false;
+        
+        /**
          * Stores our transaction objects.
          * 
          * @private 
@@ -235,7 +251,23 @@ package com.aol.api.wim {
         /**
          * This represents the number of times the session will try to reconnect. If -1, unlimited retries.
          */        
-        public var maxReconnectAttempts:uint        =   2;
+        public var maxReconnectAttempts:uint        =   10;
+        
+        /**
+         * This is an array of capabilities that the client wishes to receive from other users.
+         */
+        public var interestedCapabilities:Array     = null;
+        
+        /**
+         * comScore ID to include on sendIM calls.  This is used to differentitate calls from different clients.
+         * If you are building a client with this API feel free to supply your own URL-safe identifier. 
+         */ 
+        public var comScoreId:String                = "wimas3_"+Version.NUMBER;
+        
+        /**
+        * The IETF language tag to be used in this session, specified by RFC 4646
+        */
+        protected var _language:String; 
         
         // Protected session variables
         /**
@@ -326,11 +358,13 @@ package com.aol.api.wim {
          */
         public function Session(stageOrContainer:DisplayObjectContainer, developerKey:String,
                                    clientName:String=null, clientVersion:String=null, 
-                                   logger:ILog=null, wimBaseURL:String=null, authBaseURL:String=null) {
+                                   logger:ILog=null, wimBaseURL:String=null, authBaseURL:String=null,
+                                   language:String="en-US") {
                                        
             this._devId = developerKey;
             this._clientName = clientName;
             this._clientVersion = clientVersion;
+            this._language = language;
             
             this._logger = (logger) ? logger : new Log("Session");
            
@@ -360,13 +394,15 @@ package com.aol.api.wim {
             
             // Fetch events retry schedule
             // TODO: Load our retry schedule externally?
-            //["0":1,"1":15,"2":30,"3":60,"8":120]
+            //["0":3,"5":6,"10":15,"12":30,"14":60,"18":120]
+            // TODO: Find out how long host keeps a disconnected aimsid "alive" before it dumps it. We don't want to try more than that.
             reconnectSchedule = new Array();
-            reconnectSchedule[0] = 1;
-            reconnectSchedule[1] = 15;
-            reconnectSchedule[2] = 30;
-            reconnectSchedule[4] = 60;
-            reconnectSchedule[8] = 120;
+            reconnectSchedule[0] = 3; // the first 5 times will be every 2 seconds
+            reconnectSchedule[5] = 6; // the next 5 times will be every 6 seconds
+            reconnectSchedule[10] = 15;
+            reconnectSchedule[12] = 30;
+            reconnectSchedule[14] = 60;
+            reconnectSchedule[18] = 120;
         }
         
         ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -414,7 +450,7 @@ package com.aol.api.wim {
          * @param user The screenname of the user
          * @param pass The password of the user
          */
-        public function signOn(user:String, pass:String, challengeAnswer:String=null, forceCaptcha:Boolean=false):void {
+        public function signOn(user:String, pass:String, challengeAnswer:String=null, forceCaptcha:Boolean=false, getLongTermToken:Boolean=false):void {
             
             // TODO: Perhaps add a 'signInAsInvisible' param? or even a 'signInAs' state object? (so you can sign in as away)
             if(!user) {
@@ -430,6 +466,7 @@ package com.aol.api.wim {
             this._password = pass;
             this._challengeAnswer = challengeAnswer;
             this._forceCaptcha = forceCaptcha;
+            this._getLongTermToken = getLongTermToken;
             // Fire a sessionevent that is that we are authenticating
             this.sessionState = SessionState.AUTHENTICATING;
             // TODO: should this just be a STATE_CHANGE? Hmm, then we can't really be a target for that event.
@@ -451,14 +488,14 @@ package com.aol.api.wim {
             }
             */
             if(!_auth) {
-                _auth = new _authClass(this._devId, this._clientName, this._clientVersion, _logger, _authBaseURL);
+                _auth = new _authClass(this._devId, this._clientName, this._clientVersion, _logger, _authBaseURL, _language);
                 _auth.addEventListener(AuthEvent.LOGIN,    onAuthSignOn, false, 0, true);
                 _auth.addEventListener(AuthEvent.LOGOUT,   onAuthSignOut, false, 0, true);
                 _auth.addEventListener(AuthEvent.CHALLENGE, onAuthChallenge, false, 0, true);
                 _auth.addEventListener(AuthEvent.ERROR,     onAuthError, false, 0, true);
             }
             
-            _auth.signOn(this._username, this._password, this._challengeAnswer, !this._challengeAnswer ? _forceCaptcha : false);
+            _auth.signOn(this._username, this._password, this._challengeAnswer, !this._challengeAnswer ? _forceCaptcha : false, this._getLongTermToken);
         }
         
         /**
@@ -494,7 +531,7 @@ package com.aol.api.wim {
             var challenge:AuthChallenge = null;
             if(evt.statusDetailCode==3015) {
                 var context:String = evt.challengeContext;
-                var url:String = evt.challengeUrl + "?devId="+_devId+"&context="+context+"&language=en-us";
+                var url:String = evt.challengeUrl + "?devId="+_devId+"&context="+context+"&language="+_language;
                 var captchaImageUrl:String = url + "&f=image";
                 var captchaAudioUrl:String = url + "&f=audio";
                 var info:String = evt.info; // "PLease enter word in the image"
@@ -562,12 +599,18 @@ package com.aol.api.wim {
             queryString += "&clientName="+encodeStrPart(_clientName);
             queryString += "&clientVersion="+encodeStrPart(_clientVersion);
             queryString += "&events="+encodeStrPart("myInfo,presence,buddylist,typing,im,dataIM,offlineIM");
+DEV::internal_only
+{ 
+            queryString += encodeStrPart(",userAddedToBuddyList");
+} 
             queryString += "&f=amf3";
+            if(interestedCapabilities) 
+                queryString += "&interestCaps=" + encodeStrPart(interestedCapabilities.join(","));
             queryString += "&k="+_devId;
             
             var now:Number = new Date().getTime() / 1000;           
             _logger.debug("Host Time: {0}, Now: {1}", _token.hostTime, now);
-            queryString += "&ts="+(_token.hostTime + Math.floor(now - _token.clientTime) as uint);
+            queryString += "&ts="+ int(_token.hostTime + Math.floor(now - _token.clientTime));
             
             var encodedQuery:String = escape(queryString);
             
@@ -613,19 +656,7 @@ package com.aol.api.wim {
             var statusText:String = response.statusText;
             
             if(statusCode == 200) {
-                _fetchEventsBaseUrl = response.data.fetchBaseURL;
-                var myInfo:User               = _parser.parseUser(response.data.myInfo);
-
-                _aimsid     = response.data.aimsid;
-                _logger.debug("Session Started");
-                // this will dispatch a STATE_CHANGED event
-                this.sessionState = SessionState.ONLINE;
-                // this will dipatch a MY_INFO_UPDATED event
-                this.myInfo = myInfo;                
-                // start the fetchevents loop  
-                if(_autoFetchEvents) {
-                    fetchEvents();
-                }
+                startWithSessionId(response.data.aimsid, response.data.fetchBaseURL, _parser.parseUser(response.data.myInfo));
             } else if (statusCode == 607) {
                 // Rate limited
                 _logger.debug(statusText+" ["+statusCode+"]: ");
@@ -639,6 +670,31 @@ package com.aol.api.wim {
                 _logger.error("Error during startSession: ["+statusCode+"] "+(response.statusDetailCode)+
                              " - "+statusText);
                 this.sessionState = SessionState.OFFLINE;
+            }
+        }
+        
+        /**
+         * Start a session with an existing session ID.  This API allows callers to supply there own session ID.  Normally,
+         * Session.signOn generates the session ID using an authentication token from clientLogin.  However, there are
+         * other ways to get an authentication token.  In particular, there is an Open Auth call called getToken which
+         * returns an auth token if the user is already logged in to an AOL site.  This token can be used in a JavaScript
+         * call to startSession.  The results of that startSession call can be passed to this API.  Then wimas3 will 
+         * take over the session using the AMF3 format.
+         * 
+         * @see http://dev.aol.com/authentication_for_browser_based_apps#getToken
+         * @see http://dev.aol.com/aim/web/serverapi_reference#startSession
+         */
+        public function startWithSessionId(sessionId:String, baseUrl:String, myCurrentInfo:User):void {
+            _fetchEventsBaseUrl = baseUrl;
+            _aimsid = sessionId; 
+            _logger.debug("Session Started");
+            // this will dispatch a STATE_CHANGED event
+            this.sessionState = SessionState.ONLINE;
+            // this will dipatch a MY_INFO_UPDATED event
+            this.setMyInfo(myCurrentInfo);           
+            // start the fetchevents loop  
+            if(_autoFetchEvents) {
+                fetchEvents();
             }
         }
         
@@ -710,6 +766,7 @@ package com.aol.api.wim {
             stopFetchRetryTimer();
             _numFetchRetries = 0;
             this.sessionState = SessionState.OFFLINE;
+            this.setMyInfo(null);
         }
         
         /**
@@ -775,8 +832,6 @@ package com.aol.api.wim {
         protected function handleFetchEventsIOError(evt:IOErrorEvent):void {
             _logger.error("Fetch events IOError: "+evt.text);
             
-            
-            
             /*
              Respond to event here
              */
@@ -799,7 +854,7 @@ package com.aol.api.wim {
                     startFetchRetryTimer(_secondsToNextReconnect * 1000);
                 } else {
                     // We have given up attempting to reconnect
-                    _logger.debug("Max number of retries reached, abandoning reconnect");
+                    _logger.debug("Max number of retries reached ("+maxReconnectAttempts+", retries="+_numFetchRetries+"), abandoning reconnect");
                     // we went from online --> disconnected 
                     this.sessionState = SessionState.DISCONNECTED;
                 }
@@ -834,7 +889,7 @@ package com.aol.api.wim {
          */
         protected function fetchEventsResponse(evt:Event):void {
             var loader:ResultLoader = ResultLoader(evt.target);
-            
+                     
             var response:Object = getResponseObject(loader.data);
             
             if(response == null) {
@@ -842,10 +897,10 @@ package com.aol.api.wim {
                 return;
             }
             
-            if(statusCode != 200) _logger.debug("fetchEvents response: {0} ", response);
-            
             var statusCode:uint = response.statusCode;
             var statusText:String = response.statusText;
+            
+            if(statusCode != 200) _logger.debug("fetchEvents response: {0} ", response);
             
             //var response:FetchEventsResponse = _parser.parseFetchEventsResponse(loader.data);
             if(statusCode == 200) {
@@ -856,7 +911,6 @@ package com.aol.api.wim {
                 // If were previously trying to reconnect, set ourselves online again
                 if(_state == SessionState.RECONNECTING) {
                     stopFetchRetryTimer();
-                    _numFetchRetries = 0;
                     sessionState = SessionState.ONLINE;
                 }
                 
@@ -864,7 +918,13 @@ package com.aol.api.wim {
                 _timeToNextFetchMs = response.data.timeToNextFetch;
                 
                 dispatchEvent(new SessionEvent(SessionEvent.EVENTS_FETCHED, this, true, true));
-                handleAIMEvents(response.data.events);
+                
+                try {
+                    _logger.debug("events array: {0}", response.data.events);
+                    handleAIMEvents(response.data.events as Array);
+                } catch (error:Error) {
+                    _logger.error("error processing events: " + error.toString());
+                }
                 
                 if(_state == SessionState.ONLINE) {
                  
@@ -889,8 +949,15 @@ package com.aol.api.wim {
                 // get told that our session has expired.
                 
                 // Attempt start the session again (with the same auth token that we have)
-                _logger.debug("Invalid aimsid during fetchEvents, attempting startSession");
-                startSignedSession(this._token, this._sessionKey);
+                
+                // FIXME: If we get a 460 (invalid aimsid) during reconnecting, should we attempt to restart the session with the cached auth token, or just switch to disconnected?
+                
+                //_logger.debug("Invalid aimsid during fetchEvents, attempting startSession");
+                //startSignedSession(this._token, this._sessionKey);
+                
+            
+                _logger.debug("Received a 460 error (invalid aimsid) during fetch events, switching to DISCONNECTED");
+                this.sessionState = SessionState.DISCONNECTED;
                 
             } else {
                 _logger.error("Error during fetchEvents!!");
@@ -931,89 +998,91 @@ package com.aol.api.wim {
          * @private
          * 
          */        
-        protected function handleAIMEvents(evts:Array):void {
-            if(!evts || evts.length == 0) { return; }
-
+        protected function handleAIMEvents(evts:Array):void {            
             // TODO: Need to complete, once we receive a correctly formatted fetchEvents response
+            
+            if ((evts != null) && (evts.length > 0)) { 
+                var evt:Object; 
+                for(var i:int=0; i<evts.length; i++) {
+                    evt = evts[i];
+                    var type:String = evt.type;
+                    var eventData:Object = evt.eventData;
 
-            for each(var evt:Object in evts) {
-                var type:String = evt.type;
-                var eventData:Object = evt.eventData;
-                switch(type) {
-                    case (FetchEventType.MY_INFO) : {
-                        _logger.debug("Dispatching MY_INFO_UPDATED");
-                        // TODO: Create a UserEvent to represent MY_INFO and PRESENCE events?
-                        var myNewInfo:User = _parser.parseUser(eventData);
-                        dispatchEvent(new UserEvent(UserEvent.MY_INFO_UPDATE_RESULT, myNewInfo, true, true));
-                        break;
-                    }
-                    case (FetchEventType.PRESENCE) : {
-                        _logger.debug("Dispatching BUDDY_PRESENCE_UPDATED");
-                        // TODO: Create a UserEvent to represent MY_INFO and PRESENCE events?
-                        var buddy:User = _parser.parseUser(eventData);
-                        dispatchEvent(new UserEvent(UserEvent.BUDDY_PRESENCE_UPDATED, buddy, true, true));
-                        break;
-                    }
-                    case (FetchEventType.BUDDY_LIST) : {
-                        _logger.debug("Dispatching LIST_RECEIVED");
-                        // Dispatch a BuddyListEvent.LIST_RECEIVED
-                        var bl:BuddyList = _parser.parseBuddyList(eventData);
-                        bl.owner = _myInfo;
-                        dispatchEvent(new BuddyListEvent(BuddyListEvent.LIST_RECEIVED,null,null,bl,true,true));
-                        break;
-                    }
-                    case (FetchEventType.TYPING) : {
-                        _logger.debug("Dispatching TYPING_STATUS_RECEIVED");
-                        // Dispatch a new TypingEvent?
-                        var typing:String = eventData.typingStatus;
-                        var sourceId:String = eventData.aimId;
-                        dispatchEvent(new TypingEvent(TypingEvent.TYPING_STATUS_RECEIVED, typing, sourceId, true, true));
-                        break;
-                    }
-                    case (FetchEventType.IM) : {
-                        _logger.debug("Dispatching IM");
-                        // Dispatch a new IMEvent.IM_RECEIVED
-                        var im:IM = _parser.parseIM(eventData);
-                        dispatchEvent(new IMEvent(IMEvent.IM_RECEIVED, im, true, true));
-                        break;
-                    }
-                    case (FetchEventType.DATA_IM) : {
-                        _logger.debug("TODO: Dispatch DATA_IM");
-                        var dataIM:DataIM = _parser.parseDataIM(eventData);
-                        dispatchEvent(new DataIMEvent(DataIMEvent.DATA_IM_RECEIVED, dataIM, true, true));
-                        break;
-                    }
-                    case (FetchEventType.END_SESSION) : {
-                        _logger.debug("Received END_SESSION");
-                        clearSession();
-                        break;
-                    }
-                    case (FetchEventType.OFFLINE_IM) : {
-                        // Dispatch a new IMEvent.OFFLINE_IM_RECEIVED ? or just dispatch IM_RECEIVED?
-                        // The IM object contains the context for whether it's offline or not
-                        var offIM:IM = _parser.parseIM(eventData, _myInfo, true);
-                        dispatchEvent(new IMEvent(IMEvent.IM_RECEIVED, offIM, true, true));
-                        break;
-                    }
-                    case (FetchEventType.ADDED_TO_LIST) : {
-                        var aimId:String = eventData.requester;
-                        var message:String = eventData.msg;
-                        var authRequested:Boolean = eventData.authRequested;
-                        if(aimId)
-                        {
-                            dispatchEvent(new AddedToBuddyListEvent(AddedToBuddyListEvent.ADDED_TO_LIST, aimId, message, authRequested, true, true));
-                        }
-                        else
-                        {
-                            _logger.warn("Received '{0}' event, but there is no aimId", type);
-                        }
-                    }
-                    default: {
-                        _logger.warn("Received an unknown type of event, type is: "+type);
-                    }
+                    switch(type) {
+                        
+                        case FetchEventType.MY_INFO: 
+                            _logger.debug("Dispatching MY_INFO_UPDATED");
+                            // TODO: Create a UserEvent to represent MY_INFO and PRESENCE events?
+                            var myNewInfo:User = _parser.parseUser(eventData);
+                            this.setMyInfo(myNewInfo);
+                            //dispatchEvent(new UserEvent(UserEvent.MY_INFO_UPDATE_RESULT, myNewInfo, true, true));
+                            break;
+                      
+                        case FetchEventType.PRESENCE: 
+                            _logger.debug("Dispatching BUDDY_PRESENCE_UPDATED");
+                            // TODO: Create a UserEvent to represent MY_INFO and PRESENCE events?
+                            var buddy:User = _parser.parseUser(eventData);
+                            dispatchEvent(new UserEvent(UserEvent.BUDDY_PRESENCE_UPDATED, buddy, true, true));
+                            break;
+                        
+                        case FetchEventType.BUDDY_LIST: 
+                            _logger.debug("Dispatching LIST_RECEIVED");
+                            // Dispatch a BuddyListEvent.LIST_RECEIVED
+                            var bl:BuddyList = _parser.parseBuddyList(eventData);
+                            bl.owner = _myInfo;
+                            dispatchEvent(new BuddyListEvent(BuddyListEvent.LIST_RECEIVED,null,null,bl,true,true));
+                            break;
+                       
+                        case FetchEventType.TYPING:
+                            _logger.debug("Dispatching TYPING_STATUS_RECEIVED");
+                            // Dispatch a new TypingEvent?
+                            var typing:String = eventData.typingStatus;
+                            var sourceId:String = eventData.aimId;
+                            dispatchEvent(new TypingEvent(TypingEvent.TYPING_STATUS_RECEIVED, typing, sourceId, true, true));
+                            break;
+                        
+                        case FetchEventType.IM:
+                            _logger.debug("Dispatching IM");
+                            var im:IM = _parser.parseIM(eventData);
+                            dispatchEvent(new IMEvent(IMEvent.IM_RECEIVED, im, true, true));
+                            break;
+                        
+                        case FetchEventType.DATA_IM:
+                            _logger.debug("TODO: Dispatch DATA_IM");
+                            var dataIM:DataIM = _parser.parseDataIM(eventData);
+                            dispatchEvent(new DataIMEvent(DataIMEvent.DATA_IM_RECEIVED, dataIM, true, true));
+                            break;
+                        
+                        case FetchEventType.END_SESSION:
+                            _logger.debug("Received END_SESSION");
+                            clearSession();
+                            break;
+                        
+                        case FetchEventType.OFFLINE_IM:
+                            // Dispatch a new IMEvent.OFFLINE_IM_RECEIVED ? or just dispatch IM_RECEIVED?
+                            // The IM object contains the context for whether it's offline or not
+                            var offIM:IM = _parser.parseIM(eventData, _myInfo, true);
+                            dispatchEvent(new IMEvent(IMEvent.IM_RECEIVED, offIM, true, true));
+                            break;
+                        
+                        case FetchEventType.ADDED_TO_LIST:
+                            var aimId:String = eventData.requester;
+                            var message:String = eventData.msg;
+                            var authRequested:Boolean = eventData.authRequested;
+                                                        
+                            if(aimId) {
+                                dispatchEvent(new AddedToBuddyListEvent(AddedToBuddyListEvent.ADDED_TO_LIST, aimId, message, authRequested, true, true));
+                            } else {
+                                _logger.warn("Received '{0}' event, but there is no aimId", type);
+                            }
+                            break;
+                        
+                        default:
+                            _logger.warn("Received an unknown type of event, type is: "+type);
+                            break;
+                     }
                 } 
-            } 
- 
+            }
         }
 
         // Presence Methods ///////////////////////////////////////////////////////
@@ -1084,6 +1153,78 @@ package com.aol.api.wim {
          */
         public function setProfileMsg(profileMsg:String):void {
             // setProfile
+        }
+        
+        /**
+        * Performs a search for buddies using the ICQ directory. You may search by many different kinds
+        * of parameters, and in any combination. The search will be performed as an AND of all the criteria.
+        * All search values must be strings. In the case of booleans, please send in strings of the form "true" or "false".
+        * 
+        * Available search keys include:
+        * keyword
+        * validatedEmail
+        * email
+        * firstName
+        * lastName
+        * friendlyName
+        * language
+        * website1
+        * gender (unknown|male|female)
+        * relationshipStatus (unknown|single|dating|longTermRelationship|engaged|married|divorced|separated|widowed|openRelationship|askMe|other)
+        * online (true|false)
+        * authorize (true|false) [does the user require authorization before adding to your buddy list?]
+        * photo (true|false) [does the user have a photo?]
+        * matchGender (unknown|male|female) [gender of person that the user is interested in]
+        * phone
+        * interestText [user's interests]
+        * interestCode (unknown|50s|60s|70s|80s|adults|art|astronomy|audioAndVisual|business|businessServices|cars|celebrityFans|clothing|collections|computers|culture|ecology|entertainment|financeAndCorporate|fitness|healthAndBeauty|hobbies|homeAutomation|householdProducts|games|government|icqHelp|internet|lifestyle|mailOrderCatalog|media|moviesAndTv|music|mystics|newsAndMedia|outdoors|parenting|parties|petsAndAnimals|politics|romance|publishing|religion|retailStores|science|scienceFiction|skills|socialScience|spiritual|space|sportingAndAthletic|sports|travel|vehicles|webDesign|women|other|elementarySchool|highSchool|college|university|military|pastWorkPlace|pastOrganization|otherPast|alumniOrg|charityOrg|clubSocialOrg|communityOrg|culturalOrg|fanClubs|fraternitySorority|hobbyistsOrg|internationalOrg|natureEnvironmentOrg|professionalOrg|scientificTechnicalOrg|selfImprovementGroup|spiritualReligiousOrg|sportsOrg|supportOrg|tradeAndBusinessOrg|union|voluntaryOrg|otherGroup)
+        * Age [can be a range e.g. "20-30"]
+        * homeAddress.street
+        * homeAddress.city
+        * homeAddress.state
+        * homeAddress.zip
+        * homeAddress.country [2-letter code]
+        * originAddress.street
+        * originAddress.city
+        * originAddress.state
+        * originAddress.zip
+        * originAddress.country [2-letter code]
+        * loginEmailAddr [email address that the user can use to login]
+        */
+        public function searchMemberDirectory(searchTerms:Object):void
+        {
+            var transaction:SearchMemberDirectory;
+            if (!_transactions.memberDirectorySearch)
+            {
+                transaction = new SearchMemberDirectory(this, _language);
+                _transactions.memberDirectorySearch = transaction;
+            } else {
+                transaction = SearchMemberDirectory(_transactions.memberDirectorySearch);
+            }
+            transaction.run(searchTerms);
+        }
+        
+        /**
+         * Get profile information for a single user.
+         * 
+         * @param imId The identifier of the user in question.
+         * @param level How munch information to return.  See MemberDirectoryInfoLevelType.
+         * @param context Used to pass application data from the caller to a listener.
+         * 
+         * @see com.aol.api.wim.data.types.MemberDirectoryInfoLevelType
+         * @see com.aol.api.wim.events.MemberDirectoryEvent
+         */
+        public function getMemberDirectory(imId:String, level:String="full", context:Object=null):void
+        {
+            var transaction:GetMemberDirectory;
+            if (!_transactions.getMemberDirectory)
+            {
+                transaction = new GetMemberDirectory(this, _language);
+                _transactions.getMemberDirectory = transaction;
+            } else {
+                transaction = GetMemberDirectory(_transactions.getMemberDirectory);
+            }
+            transaction.run(imId, level, context);           
         }
         
         // IM Methods //////////////////////////////////////////////////////////////
@@ -1164,7 +1305,16 @@ package com.aol.api.wim {
         public function setExpression(expressionType:String, id:String):void {
         }      
         
-        public function addBuddy(buddyName:String, groupName:String):void {
+        /**
+         * Adds a buddy to the buddy list.  
+         * 
+         * @param buddyName The screenname of the buddy to add.
+         * @param groupName The gruop to add the buddy to.
+         * @private
+         * @param authorizationMsg Only applicable for ICQ users
+         * 
+         */
+        public function addBuddy(buddyName:String, groupName:String, authorizationMsg:String=null, preAuthorized:Boolean=false):void {
             var transaction:AddBuddy;
             if(!_transactions.addBuddy) {
                transaction = new AddBuddy(this);
@@ -1172,7 +1322,31 @@ package com.aol.api.wim {
             } else {
                 transaction = _transactions.addBuddy as AddBuddy;
             }
-            transaction.run(buddyName, groupName);
+            transaction.run(buddyName, groupName, authorizationMsg, preAuthorized);
+        }
+        
+        /**
+         * Allows for the setting of various buddy attributes. The attributes are 
+         * passed in as an object which properties that represent the attributes which 
+         * are to be set. The following properties are allowed:
+         *  - friendly: the friendly name to store for the buddy
+         * 
+         * There will be no event fired after this call is made. However, if it is successful, 
+         * a new buddy list event will fire with the updated information.
+         *   
+         * @param buddyName     The aimid of the buddy whose attributes we are setting.
+         * @param attributes    An object with properties representing the attributes and their values.
+         * 
+         */
+        public function setBuddyAttribute(buddyName:String, attributes:Object):void {
+            var transaction:SetBuddyAttribute;
+            if(!_transactions.setBuddyAttribute) {
+                transaction = new SetBuddyAttribute(this);
+                _transactions.setBuddyAttribute = transaction;
+            } else {
+                transaction = _transactions.setBuddyAttribute as SetBuddyAttribute;
+            }
+            transaction.run(buddyName, attributes);
         }
         
         public function removeBuddy(buddyName:String, groupName:String):void {
@@ -1184,6 +1358,46 @@ package com.aol.api.wim {
                 transaction = _transactions.removeBuddy as RemoveBuddy;
             }
             transaction.run(buddyName, groupName);
+        }
+        
+        public function reportSPIM(buddyName:String, type:String="spim", event:String="user"):void
+        {
+            var transaction:ReportSPIM;
+            if(!_transactions.reportSPIM) {
+                transaction = new ReportSPIM(this);
+                _transactions.reportSPIM = transaction;
+            } else {
+                transaction = _transactions.reportSPIM as ReportSPIM;
+            }
+            transaction.run(buddyName, type, event);
+        }
+        
+        /**
+         * Takes in an object that represents all the parameters for the call. Allowed properties on the 
+         * object are as follows:
+         * 
+         * pdAllow : Array of aimIds to allow
+         * pdBlock : Array of aimIds to block
+         * pdIgnore : Array of aimIds to ignore
+         * pdAllowRemove : Array of aimIds to remove from the allow list
+         * pdBlockRemove : Array of aimIds to remove from the block list
+         * pdIgnoreRemove : Array of aimIds to remove from the ignore list
+         * pdMode : { permitAll | permitSome | permitOnList | denySome | denyAll } (see <pre>PermitDenyMode</pre>)
+         * 
+         * @param attributes An object with one or more of the mentioned properties.
+         * 
+         */
+
+        public function setPermitDeny(attributes:Object):void
+        {
+            var transaction:SetPermitDeny;
+            if(!_transactions.setPermitDeny) {
+                transaction = new SetPermitDeny(this);
+                _transactions.setPermitDeny = transaction;
+            } else {
+                transaction = _transactions.setPermitDeny as SetPermitDeny;
+            }
+            transaction.run(attributes);
         }
         
         /** 
@@ -1275,6 +1489,11 @@ package com.aol.api.wim {
             if(this._state != s) {
                 this._state = s;
                 _logger.debug("Session state --> "+this._state);
+                if(this._state == SessionState.ONLINE)
+                {
+                    // Always reset our fetch retry count, whether we recovered from reconnecting or had to restart our session
+                    _numFetchRetries = 0;
+                }
                 dispatchEvent(new SessionEvent(SessionEvent.STATE_CHANGED, this, true, true));
             }
         }
@@ -1286,10 +1505,37 @@ package com.aol.api.wim {
             return _myInfo;
         }
         
-        public function set myInfo(info:User):void {
+        /**
+         * This sets our myInfo object and sends a MY_INFO_UPDATE_RESULT event. This is for internal use. 
+         * To change aspects of myInfo, refer to functions such as <code>setState</code> and <code>setStatusMsg</code>
+         * @param info
+         * 
+         * @see com.aol.api.wim.events.UserEvent#MY_INFO_UPDATE_RESULT
+         * @see setState
+         * @see setStatusMsg 
+         */        
+        protected function setMyInfo(me:User):void {
             //TODO: add a .equals call on the user to check and see if both user objects are the same
-            _myInfo = info;
-            dispatchEvent(new UserEvent(UserEvent.MY_INFO_UPDATING, info, true, true));
+            _myInfo = me;
+            // Even though this is not from the server, we synthesize a "MY_INFO" event which represents the
+            // fact that myInfo has been changed
+            dispatchEvent(new UserEvent(UserEvent.MY_INFO_UPDATE_RESULT, me, true, true));
+        }
+        
+        /**
+         * Returns the unique username used for this session. It is retrieved from the 'myInfo' object if available. 
+         * @return 
+         * 
+         */        
+        public function get username():String {
+            if(_myInfo)
+            {
+                return _myInfo.aimId;
+            }
+            else
+            {
+                return _username;
+            }
         }
         
         public function get devId():String {
@@ -1361,12 +1607,20 @@ package com.aol.api.wim {
         /**
          * @private
          */ 
-        protected function getResponseObject(data:Object):Object {
+        public function getResponseObject(data:ByteArray):Object {
             
             var obj:Object = null;
             
             try {
-                obj = ByteArray(data).readObject();
+                data.objectEncoding = ObjectEncoding.AMF3;
+                data.position = 0;
+                /*
+                var hex:HexEncoder = new HexEncoder();
+                hex.encode(data);
+                _logger.debug("raw hex: " + hex.flush()); 
+                data.position = 0;
+                */
+                obj = data.readObject();
             } catch (e:Object) {
                 _logger.fatal("ByteArray.readObject threw {0} on the following data: {1}", e, data);
             }

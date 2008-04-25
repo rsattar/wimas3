@@ -1,5 +1,5 @@
 package com.aol.api.wim.data {
-    import com.aol.api.wim.data.types.PresenceState;
+    import com.aol.api.wim.data.types.UserType;
     
     
     /**
@@ -9,6 +9,13 @@ package com.aol.api.wim.data {
     
     public class User {
         /**
+         * This is the formatting for the friendly name when the <pre>label</pre> property is queried.
+         * It's a string where <pre>{0}</pre> represents the friendly name. For example the 
+         * value <pre>"\"{0}\""</pre> would cause the <pre>label</pre> property to return <pre>"Friendly Name"</pre> 
+         * if a friendly name is present for that user.
+         */
+        public static var friendlyNameFormat:String = "{0}";
+        /**
         * Normalized AIM ID. Use this to identify objects like conversations and windows.
         */
         public var aimId:String;
@@ -16,6 +23,10 @@ package com.aol.api.wim.data {
         * Formatted AIM ID. Use this to display the aim ID to the user.
         */
         public var displayId:String;
+        /**
+        * Display name, often provided by ICQ. This is different from displayId in that it can contain competely separate characters.
+        */
+        public var friendlyName:String;
         /**
         * User's e-mail address. Only set when doing an e-mail search.
         */
@@ -66,9 +77,14 @@ package com.aol.api.wim.data {
         */
         public var memberSince:int;
         /**
-        * User's capabilities in an array.
+        * User's capabilities in an array. This is an array of 32 character UUID strings.
+        * e.g. 8eec67ce70d041009409a7c1602a5c84
         */
         public var capabilities:Array;
+        /**
+        * Country code from which user is logged in; only set for logged in user.
+        */ 
+        public var countryCode:String = null;
                 
         /**
         * Returns the displayId, or aimId if displayId is undefined.
@@ -76,12 +92,35 @@ package com.aol.api.wim.data {
         */
         public function get label():String
         {
-            return displayId ? displayId : aimId;
+            return friendlyName ? friendlyNameFormat.replace(/\{0\}/g, friendlyName) : (displayId ? displayId : aimId);
+        }
+        
+        public function get bot():Boolean
+        {
+            return (aimId == "aolsystemmsg") //fixme: hardcode this until SAWS gives a solution
+        }
+        
+        /**
+         * @private  
+         */
+        public function get isFollowMe():Boolean
+        {
+            return (capabilities && capabilities.indexOf("8eec67ce70d041009409a7c1602a5c84") >= 0);            
+        }
+        
+        public function get userType():String
+        {
+            if(aimId.search(/^[0-9]+/) == 0)
+                return UserType.ICQ;
+            if(aimId.search(/^\+/) == 0)
+                return UserType.SMS;
+            return UserType.AIM;
         }
  
         public function toString():String {
             return "[User:" + aimId + 
-                   " displayId=" + displayId + 
+                   ", displayId=" + displayId + 
+                   ", friendlyName=" + friendlyName +
                    ", emailId=" + emailId + 
                    ", state=" + state +
                    ", onlineTime=" + onlineTime +

@@ -73,6 +73,18 @@ package com.aol.api.wim.events
         public var group:Group;
         
         /**
+         * @private
+         * The personal message associated with the add buddy call. Only for ICQ. 
+         */
+        public var authorizationMsg:String;
+        
+        /**
+         * @private
+         * Pre-authorized to allow the new buddy to add self into his/her buddylist. Only for ICQ. 
+         */
+        public var preAuthorized:Boolean;
+        
+        /**
          * This property is only valid for LIST_RECEIVED events, and it represents the user's
          * entire buddy list. 
          */

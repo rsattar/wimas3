@@ -29,12 +29,16 @@ package com.aol.api.wim.transactions {
             addEventListener(BuddyListEvent.BUDDY_ADDING, doAddBuddy, false, 0, true);
         }
         
-        public function run(buddyName:String, groupName:String):void {
+        public function run(buddyName:String, groupName:String, authorizationMsg:String=null, preAuthorized:Boolean=false):void {
             //TODO: Params checking before dispatching event
             var user:User = new User();
             user.aimId = buddyName;
             var group:Group = new Group(groupName);
-            dispatchEvent(new BuddyListEvent(BuddyListEvent.BUDDY_ADDING, user, group, null, true, true));
+            var evt:BuddyListEvent = new BuddyListEvent(BuddyListEvent.BUDDY_ADDING, user, group, null, true, true);
+            if(authorizationMsg)
+                evt.authorizationMsg = authorizationMsg;
+            evt.preAuthorized = preAuthorized;
+            dispatchEvent(evt);
         }
         
         private function doAddBuddy(evt:BuddyListEvent):void {
@@ -47,6 +51,10 @@ package com.aol.api.wim.transactions {
                 "&r=" + requestId +
                 "&buddy=" + encodeURIComponent(evt.buddy.aimId) +
                 "&group=" + encodeURIComponent(evt.group.label);
+            if(evt.authorizationMsg) 
+                query += "&authorizationMsg=" + encodeURIComponent(evt.authorizationMsg);
+            if(evt.preAuthorized)
+                query += "&preAuthorized=true";
             _logger.debug("AddBuddyQuery: " + _session.apiBaseURL + method + query);
             sendRequest(_session.apiBaseURL + method + query);
         }

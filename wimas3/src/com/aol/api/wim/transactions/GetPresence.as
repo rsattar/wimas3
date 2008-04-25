@@ -21,8 +21,6 @@ package com.aol.api.wim.transactions
     import com.aol.api.wim.interfaces.IResponseParser;
     
     import flash.events.Event;
-    import flash.net.URLLoader;
-    import flash.utils.ByteArray;
 
     public class GetPresence extends Transaction
     {
@@ -88,9 +86,6 @@ package com.aol.api.wim.transactions
 
         override protected function requestComplete(evt:Event):void {
             super.requestComplete(evt);
-            var loader:URLLoader = evt.target as URLLoader;
-            //_logger.debug("AddBuddy Response XML: "+String(loader.data));
-            
             var statusCode:uint = _response.statusCode;
             //get the old event so we can create the new event
             if(statusCode == 200) {
