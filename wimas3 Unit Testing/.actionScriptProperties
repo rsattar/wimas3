@@ -8,7 +8,6 @@
 <libraryPathEntry kind="3" linkType="1" path="libs/FlexUnit/bin/flexunit.swc" useDefaultLinkType="false"/>
 <libraryPathEntry kind="3" linkType="1" path="/wimas3/bin-debug/wimas3.swc" useDefaultLinkType="false"/>
 <libraryPathEntry kind="3" linkType="1" path="/wimas3_mock_server/bin/wimas3_mock_server.swc" useDefaultLinkType="false"/>
-<libraryPathEntry kind="3" linkType="1" path="/Users/shawncarnell/svn/webaim/lib/aimlib/aimlib.swc" useDefaultLinkType="false"/>
 </libraryPath>
 <sourceAttachmentPath/>
 </compiler>
