@@ -5,9 +5,9 @@ package com.aol.api.openauth
     
     public class MockClientLogin extends ClientLogin
     {
-        public function MockClientLogin(dev:String, clientName:String, clientVersion:String, logger:ILog=null, authBaseURL:String=null)
+        public function MockClientLogin(dev:String, clientName:String, clientVersion:String, logger:ILog=null, authBaseURL:String=null, language:String="en-us")
         {
-            super(dev, clientName, clientVersion, logger, authBaseURL);
+            super(dev, clientName, clientVersion, logger, authBaseURL, language);
             _loaderClass = MockURLLoader;
         }
         
