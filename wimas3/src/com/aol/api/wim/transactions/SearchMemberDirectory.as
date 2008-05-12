@@ -57,7 +57,7 @@ package com.aol.api.wim.transactions
             
             for (var key:String in o)
             {
-                ret += key + '=' + escape(o[key]) + ',';
+                ret += key + '=' + encodeURIComponent(o[key]) + ',';
             }
             
             return (ret.replace(/,$/, ""));

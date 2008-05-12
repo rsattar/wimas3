@@ -20,10 +20,11 @@ package com.aol.api.wim.transactions
     import com.aol.api.wim.events.IMEvent;
     
     import flash.events.Event;
-    import flash.net.URLLoader;
 
     public class SendIM extends Transaction
     {
+        protected function get format():String{ return "amf3"; }
+        
         public function SendIM(session:Session)
         {
             super(session);
@@ -44,7 +45,7 @@ package com.aol.api.wim.transactions
             evt.requestId = requestId;
             var method:String = "im/sendIM";
             var query:String = 
-                "?f=amf3" +
+                "?f=" + format +
                 "&aimsid=" + _session.aimsid +
                 "&r=" + requestId +
                 "&t=" + encodeURIComponent(evt.im.recipient.aimId) +
@@ -58,9 +59,10 @@ package com.aol.api.wim.transactions
         
         override protected function requestComplete(evt:Event):void {
             super.requestComplete(evt);
-            var loader:URLLoader = evt.target as URLLoader;
-            //_logger.debug("SendIM Response XML: "+String(loader.data));
-            
+            handleResponse();
+        }
+        
+        protected function handleResponse():void {
             var statusCode:String = _response.statusCode;
             var statusText:String = _response.statusText;
             var requestId:uint = _response.requestId;

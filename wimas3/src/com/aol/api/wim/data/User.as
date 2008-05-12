@@ -116,7 +116,7 @@ package com.aol.api.wim.data {
                 return UserType.SMS;
             return UserType.AIM;
         }
- 
+
         public function toString():String {
             return "[User:" + aimId + 
                    ", displayId=" + displayId + 
@@ -137,17 +137,7 @@ package com.aol.api.wim.data {
         }
         
         public function equals(other:User):Boolean {
-            return (other.uniqueIdentifier == this.uniqueIdentifier);
-        }
-        
-        /**
-        * If ICQ support adds in other fields, update this method to
-        * check if the user is ICQ or AIM and return the appropriate ID.
-        * @author Roger Braunstein
-        */
-        public function get uniqueIdentifier():String
-        {
-            return aimId;
+            return (other.aimId == aimId);
         }
     }
 }

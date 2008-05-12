@@ -41,6 +41,23 @@ package com.aol.api.wim.events
 
         public var dataIM:DataIM;
         
+        /**
+         * Stores the request ID for the event. This allows for matching of DATA_IM_SENDING and DATA_IM_SENT events to each other. 
+         */
+        public var requestId:uint;
+        
+        /**
+         * Contains the status code from trying to send an IM. Only valid for 
+         * the DATA_IM_SEND_RESULT event. 
+         */
+        public var statusCode:String;
+        
+        /**
+         * Contains the status text from trying to send an IM. Only valid for 
+         * the DATA_IM_SEND_RESULT event. 
+         */
+        public var statusText:String;        
+        
         public function DataIMEvent(type:String, dataIM:DataIM, bubbles:Boolean=false, cancelable:Boolean=false) {
             //TODO: implement function
             super(type, bubbles, cancelable);

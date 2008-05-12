@@ -19,13 +19,14 @@ package com.aol.api.wim.data {
      * This object extends the <code>IM</code> object by adding a capabilityUUID string,
      * a dataType, and an optional inviteMessage.
      * 
-     * The message property is used in this case to store the base64 encoded message.
+     * The message property is used in this case to store the (optionally) base64 encoded message.
      */    
     public class DataIM extends IM {
         
         public var capabilityUUID:String;
         public var dataType:String;
         public var inviteMessage:String;
+        public var base64Encoded:Boolean;
         
         /**
          * 
@@ -38,9 +39,10 @@ package com.aol.api.wim.data {
          * @param inviteMessage
          * 
          */        
-        public function DataIM(dataMsg:String, dataType:String, timestamp:Date, sender:User, recipient:User, capability:String, inviteMessage:String=null) {
+        public function DataIM(dataMsg:String, dataType:String, timestamp:Date, sender:User, recipient:User, capability:String, inviteMessage:String=null, isBase64Encoded:Boolean=false) {
             
             super(dataMsg, timestamp, sender, recipient, false, false);
+            this.base64Encoded = isBase64Encoded;
             this.capabilityUUID = capability;
             this.dataType = dataType;
             this.inviteMessage = inviteMessage;
@@ -52,6 +54,7 @@ package com.aol.api.wim.data {
                    ", dataType='" + dataType + "'" + 
                    ", capabilityUUID=" + capabilityUUID + 
                    ", inviteMessage=" + inviteMessage + 
+            	   ", base64Encoded='" + base64Encoded + "'" +
                    "]";
         }
         

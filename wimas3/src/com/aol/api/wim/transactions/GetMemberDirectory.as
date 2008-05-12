@@ -51,6 +51,7 @@ package com.aol.api.wim.transactions {
         
         override protected function requestComplete(event:Event):void {
             super.requestComplete(event);
+            if(!_response) return;
             
             var statusCode:uint = _response.statusCode;
             var statusText:String = _response.statusText;
@@ -60,9 +61,10 @@ package com.aol.api.wim.transactions {
             var newEvent:MemberDirectoryEvent = new MemberDirectoryEvent(MemberDirectoryEvent.DIRECTORY_GET_RESULT, true, true);            
             newEvent.context = oldEvent.context;
             newEvent.searchResults = [];
+            newEvent.statusCode = statusCode;
             
             if (statusCode == 200) {
-                _logger.debug("GetMemberDirectory data.results {0}", _response.data.results);
+                _logger.debug("GetMemberDirectory response.data {0}", _response.data);
                 if (_response.data.infoArray != null) {                
                     newEvent.searchResults = _response.data.infoArray;
                 }

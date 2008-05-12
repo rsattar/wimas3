@@ -47,6 +47,8 @@ package com.aol.api.wim {
     import com.aol.api.wim.transactions.ResultLoader;
     import com.aol.api.wim.transactions.SearchMemberDirectory;
     import com.aol.api.wim.transactions.SendIM;
+    import com.aol.api.wim.transactions.SendIMXML;
+    import com.aol.api.wim.transactions.SendDataIM;
     import com.aol.api.wim.transactions.SetBuddyAttribute;
     import com.aol.api.wim.transactions.SetPermitDeny;
     import com.aol.api.wim.transactions.SetState;
@@ -257,6 +259,11 @@ package com.aol.api.wim {
          * This is an array of capabilities that the client wishes to receive from other users.
          */
         public var interestedCapabilities:Array     = null;
+
+        /**
+         * This is an array of capabilities that the client wishes to display to other users.
+         */
+        public var assertCapabilities:Array     = null;
         
         /**
          * comScore ID to include on sendIM calls.  This is used to differentitate calls from different clients.
@@ -391,6 +398,7 @@ package com.aol.api.wim {
             _evtDispatch.addEventListener(SessionEvent.SESSION_STARTING, this.doStartSignedSession, false, 0, true);
             _evtDispatch.addEventListener(SessionEvent.EVENTS_FETCHING, this.doFetchEvents, false, 0, true);
             _evtDispatch.addEventListener(SessionEvent.SESSION_ENDING, this.doSignOff, false, 0, true);
+            _evtDispatch.addEventListener(UserEvent.MY_INFO_UPDATE_RESULT, this.doMyInfoUpdateResult, false, 0, true);
             
             // Fetch events retry schedule
             // TODO: Load our retry schedule externally?
@@ -596,6 +604,8 @@ package com.aol.api.wim {
 
             // Set up params in alphabetical order
             queryString += "a="+_token.a;
+            if(assertCapabilities)
+               queryString += "&assertCaps=" + encodeStrPart(assertCapabilities.join(","));            
             queryString += "&clientName="+encodeStrPart(_clientName);
             queryString += "&clientVersion="+encodeStrPart(_clientVersion);
             queryString += "&events="+encodeStrPart("myInfo,presence,buddylist,typing,im,dataIM,offlineIM");
@@ -1011,9 +1021,10 @@ DEV::internal_only
                     switch(type) {
                         
                         case FetchEventType.MY_INFO: 
-                            _logger.debug("Dispatching MY_INFO_UPDATED");
+                            _logger.debug("Dispatching MY_INFO_UPDATE_RESULT");
                             // TODO: Create a UserEvent to represent MY_INFO and PRESENCE events?
                             var myNewInfo:User = _parser.parseUser(eventData);
+                            _logger.debug("new myInfo data: {0}", myNewInfo);
                             this.setMyInfo(myNewInfo);
                             //dispatchEvent(new UserEvent(UserEvent.MY_INFO_UPDATE_RESULT, myNewInfo, true, true));
                             break;
@@ -1226,9 +1237,39 @@ DEV::internal_only
             }
             transaction.run(imId, level, context);           
         }
-        
         // IM Methods //////////////////////////////////////////////////////////////
         // *** See design notes above
+
+        /**
+         * Deprecated. Use sendIM instead. Sends an IM to a screenname
+         * @param buddyScreenName The screenName of the buddy being IMed.
+         * @param msg The message to be sent. This message is <code>escape()</code>ed before sending.
+         * @param isAutoResponse Whether or not this message should be marked as an auto-response.
+         * @param attempOffline If <code>true</code>, the message will be scheduled for offline delivery if needed.
+         * 
+         * @see com.aol.api.wim.events.IMEvent#IM_SENDING
+         * @see com.aol.api.wim.events.IMEvent#IM_SEND_RESULT
+         *  
+         */
+        public function sendIMToBuddy(buddyScreenName:String, msg:String, isAutoResponse:Boolean=false, attemptOffline:Boolean=false):void {
+            sendIM(buddyScreenName, msg, isAutoResponse, attemptOffline);
+        }        
+
+        /**
+         * Deprecated. Please use sendDataIM instead. Sends a data IM.
+         *  
+         * @param buddyScreenName The buddy to send the data IM to
+         * @param type            The type of message. See <pre>DataIMType</pre>
+         * @param data            The data to send
+         * @param capability      The UUID of the capability for this data
+         * @param base64Encoded   Whether or not the data is base64 encoded.
+         * @param isAutoResponse  Whether or not this is an autorespnse.
+         * @param inviteMsg       For the invite message type, and optional invite message can be included.
+         */
+        public function sendDataIMToBuddy(buddyScreenName:String, type:String, data:String, capability:String, base64Encoded:Boolean=false, isAutoResponse:Boolean=false, inviteMsg:String=null):void {
+            sendDataIM(buddyScreenName, type, data, capability, base64Encoded, isAutoResponse, inviteMsg);
+        }
+
         /**
          * Sends an IM to a screenname
          * @param buddyScreenName The screenName of the buddy being IMed.
@@ -1239,8 +1280,8 @@ DEV::internal_only
          * @see com.aol.api.wim.events.IMEvent#IM_SENDING
          * @see com.aol.api.wim.events.IMEvent#IM_SEND_RESULT
          */
-        public function sendIMToBuddy(buddyScreenName:String, msg:String, 
-                                      isAutoResponse:Boolean=false, attemptOffline:Boolean=false):void {
+        public function sendIM(buddyScreenName:String, msg:String, 
+                               isAutoResponse:Boolean=false, attemptOffline:Boolean=false):void {
             var transaction:SendIM;
             if(!_transactions.sendIM) {
                transaction = new SendIM(this);
@@ -1253,14 +1294,46 @@ DEV::internal_only
         
         /**
          * @private
-         *  
-         * Sends a data IM
-         * This needs to be fleshed out.
-         * 
+         * Sends an IM to a buddy, with an XML response so we can 
+         * get counted by ComScore. O_o
          */
-        public function sendDataIMToBuddy(buddyScreenName:String, type:String, data:String, base64Encoded:Boolean=false, 
+        public function sendIMXML(buddyScreenName:String, msg:String, 
+                                      isAutoResponse:Boolean=false, attemptOffline:Boolean=false):void {
+            var transaction:SendIMXML;
+            if(!_transactions.sendIMXML) {
+               transaction = new SendIMXML(this);
+               _transactions.sendIMXML = transaction;
+            } else {
+                transaction = _transactions.sendIMXML as SendIMXML;
+            }
+            transaction.run(buddyScreenName, msg, isAutoResponse, attemptOffline);
+        }
+        
+        /**
+         * Sends a data IM.
+         *  
+         * @param buddyScreenName The buddy to send the data IM to
+         * @param type            The type of message. See <pre>DataIMType</pre>
+         * @param data            The data to send
+         * @param capability      The UUID of the capability for this data
+         * @param base64Encoded   Whether or not the data is base64 encoded.
+         * @param isAutoResponse  Whether or not this is an autorespnse.
+         * @param inviteMsg       For the invite message type, and optional invite message can be included.
+         * 
+         * @see com.aol.api.wim.events.DataIMEvent
+         * @see com.aol.api.wim.data.types.DataIMType
+         */
+        public function sendDataIM(buddyScreenName:String, type:String, data:String, capability:String, base64Encoded:Boolean=false, 
                                    isAutoResponse:Boolean=false, inviteMsg:String=null):void {
-            // sendDataIM
+             // sendDataIM
+            var transaction:SendDataIM;
+            if (!_transactions.sendDataIM) {
+               transaction = new SendDataIM(this);
+               _transactions.sendDataIM = transaction;
+            } else {
+               transaction = _transactions.sendDataIM as SendDataIM;
+            }
+            transaction.run(buddyScreenName, data, type, capability, inviteMsg, isAutoResponse, base64Encoded); 
         }
         
         /**
@@ -1421,6 +1494,12 @@ DEV::internal_only
             transaction.run(user);
         }
  
+        /**
+         * Listener for server response from setState calls.
+         */ 
+        private function doMyInfoUpdateResult(event:UserEvent):void {
+           _myInfo = event.user; 
+        }
         
         // Fetch Events specific methods (for robust connectedness)
         
@@ -1519,7 +1598,9 @@ DEV::internal_only
             _myInfo = me;
             // Even though this is not from the server, we synthesize a "MY_INFO" event which represents the
             // fact that myInfo has been changed
-            dispatchEvent(new UserEvent(UserEvent.MY_INFO_UPDATE_RESULT, me, true, true));
+            var event:UserEvent = new UserEvent(UserEvent.MY_INFO_UPDATE_RESULT, me, true, true);
+            _logger.debug("about to dispatch new MY_INFO_UPDATE_RESULT containing: {0}", event.user);
+            dispatchEvent(event);
         }
         
         /**

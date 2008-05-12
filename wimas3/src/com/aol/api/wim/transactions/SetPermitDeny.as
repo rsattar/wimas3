@@ -1,6 +1,7 @@
 package com.aol.api.wim.transactions
 {
     import com.aol.api.wim.Session;
+    import com.aol.api.wim.events.PermitDenyEvent;
     
     import flash.events.Event;
 
@@ -55,11 +56,14 @@ package com.aol.api.wim.transactions
         override protected function requestComplete(event:Event):void
         {
             super.requestComplete(event);
-            var statusCode:uint = _response.statusCode;
+            var statusCode:String = _response.statusCode;
             //get the old event so we can create the new event
-            if(statusCode == 200) {
-                var results:Object = _response.data.results;
-            }            
+            var e:PermitDenyEvent = new PermitDenyEvent(PermitDenyEvent.SET_PD_RESULT, true, false);
+            e.statusCode = statusCode;
+            if(statusCode == "200") {
+                e.results = _response.data.results;
+            }
+            dispatchEvent(e);
         }
          
     }

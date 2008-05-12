@@ -42,10 +42,10 @@ package com.aol.api.wim.transactions {
                 "?f=amf3" +
                 "&aimsid=" + _session.aimsid +
                 "&r=" + requestId +
-                "&view=" + escape(evt.user.state);
+                "&view=" + encodeURIComponent(evt.user.state);
                 if (evt.user.awayMessage != null)
                 { 
-                    query  += "&away=" + escape(evt.user.awayMessage);
+                    query  += "&away=" + encodeURIComponent(evt.user.awayMessage);
                 }
             _logger.debug("SetState: " + _session.apiBaseURL + method + query);
             sendRequest(_session.apiBaseURL + method + query);
@@ -61,6 +61,7 @@ package com.aol.api.wim.transactions {
             var oldEvent:UserEvent = getRequest(requestId) as UserEvent;
             if(statusCode == 200) {
                 var user:User = new AMFResponseParser().parseUser(_response.data.myInfo);
+                _logger.debug("Dispatching MY_INFO_UPDATE_RESULT based on SetState server response: {0}", user);
                 var newEvent:UserEvent = new UserEvent(UserEvent.MY_INFO_UPDATE_RESULT, user, true, true);
                 dispatchEvent(newEvent);
             }                 

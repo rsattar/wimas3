@@ -31,6 +31,6 @@ package com.aol.api.wim.data.types {
         /**
          * Returns all available fields.    
          */
-        public static const ALL:String =     "all";
+        public static const ALL:String =     "full";
     }
 }
