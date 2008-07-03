@@ -16,6 +16,7 @@ package com.aol.api.wim.transactions {
     import com.aol.api.wim.AMFResponseParser;
     import com.aol.api.wim.Session;
     import com.aol.api.wim.data.User;
+    import com.aol.api.wim.data.types.PresenceState;
     import com.aol.api.wim.events.UserEvent;
     
     import flash.events.Event;
@@ -26,15 +27,15 @@ package com.aol.api.wim.transactions {
         // TODO: where is the best place to declar this so it can be changed?
         public function SetState(session:Session) {
             super(session);
-            addEventListener(UserEvent.MY_INFO_UPDATING, doSetStatus, false, 0, true);
+            addEventListener(UserEvent.PRESENCE_STATE_UPDATING, doSetState, false, 0, true);
         }
         
         public function run(user:User):void {
             //TODO: Params checking before dispatching event
-            dispatchEvent(new UserEvent(UserEvent.MY_INFO_UPDATING, user, true, true));
+            dispatchEvent(new UserEvent(UserEvent.PRESENCE_STATE_UPDATING, user, true, true));
         }
         
-        private function doSetStatus(evt:UserEvent):void {
+        private function doSetState(evt:UserEvent):void {
             //store the event to represent the request data
             var requestId:uint = storeRequest(evt);
             var method:String = "presence/setState";
@@ -43,7 +44,7 @@ package com.aol.api.wim.transactions {
                 "&aimsid=" + _session.aimsid +
                 "&r=" + requestId +
                 "&view=" + encodeURIComponent(evt.user.state);
-                if (evt.user.awayMessage != null)
+                if (evt.user.state == PresenceState.AWAY && evt.user.awayMessage != null)
                 { 
                     query  += "&away=" + encodeURIComponent(evt.user.awayMessage);
                 }
@@ -59,11 +60,20 @@ package com.aol.api.wim.transactions {
             var requestId:uint = _response.requestId;
             //get the old event so we can create the new event
             var oldEvent:UserEvent = getRequest(requestId) as UserEvent;
+            _logger.debug("presence/setState response:\n {0}",_response);
             if(statusCode == 200) {
                 var user:User = new AMFResponseParser().parseUser(_response.data.myInfo);
-                _logger.debug("Dispatching MY_INFO_UPDATE_RESULT based on SetState server response: {0}", user);
-                var newEvent:UserEvent = new UserEvent(UserEvent.MY_INFO_UPDATE_RESULT, user, true, true);
-                dispatchEvent(newEvent);
+                
+                // Dispatch a state update result
+                _logger.debug("Dispatching PRESENCE_STATE_UPDATE_RESULT based on SetState server response: {0}", user);
+                var newStateEvent:UserEvent = new UserEvent(UserEvent.PRESENCE_STATE_UPDATE_RESULT, user, true, true);
+                dispatchEvent(newStateEvent);
+                
+                
+                // Due to bugs in host, we are not guaranteed that a "myInfo" even will be fired, so we fire an extra one
+                _logger.debug("Dispatching MY_INFO_UPDATED based on SetState server response: {0}", user);
+                var newMyInfoEvent:UserEvent = new UserEvent(UserEvent.MY_INFO_UPDATED, user, true, true);
+                dispatchEvent(newMyInfoEvent);
             }                 
         }
     }

@@ -28,6 +28,7 @@ package com.aol.api.wim {
     import com.aol.api.wim.data.User;
     import com.aol.api.wim.data.types.AuthChallengeType;
     import com.aol.api.wim.data.types.FetchEventType;
+    import com.aol.api.wim.data.types.PresenceState;
     import com.aol.api.wim.data.types.SessionState;
     import com.aol.api.wim.events.AddedToBuddyListEvent;
     import com.aol.api.wim.events.AuthChallengeEvent;
@@ -40,18 +41,21 @@ package com.aol.api.wim {
     import com.aol.api.wim.events.UserEvent;
     import com.aol.api.wim.interfaces.IResponseParser;
     import com.aol.api.wim.transactions.AddBuddy;
+    import com.aol.api.wim.transactions.AddTempBuddy;
     import com.aol.api.wim.transactions.GetMemberDirectory;
+    import com.aol.api.wim.transactions.GetPreference;
     import com.aol.api.wim.transactions.GetPresence;
     import com.aol.api.wim.transactions.RemoveBuddy;
     import com.aol.api.wim.transactions.ReportSPIM;
     import com.aol.api.wim.transactions.ResultLoader;
     import com.aol.api.wim.transactions.SearchMemberDirectory;
+    import com.aol.api.wim.transactions.SendDataIM;
     import com.aol.api.wim.transactions.SendIM;
     import com.aol.api.wim.transactions.SendIMXML;
-    import com.aol.api.wim.transactions.SendDataIM;
     import com.aol.api.wim.transactions.SetBuddyAttribute;
     import com.aol.api.wim.transactions.SetPermitDeny;
     import com.aol.api.wim.transactions.SetState;
+    import com.aol.api.wim.transactions.SetStatus;
     import com.aol.api.wim.transactions.SetTyping;
     
     import flash.display.DisplayObjectContainer;
@@ -276,16 +280,26 @@ package com.aol.api.wim {
         */
         protected var _language:String; 
         
+        /**
+         * The minimum time possible to supply for a fetchEvents timeout request: 0.5 seconds
+         */        
+        protected static const minimumFetchTimeOutMs:Number =   500;     // 0.5 seconds
+        
+        /**
+         * The maximum time possible to supply for a fetchEvents timeout request: 1 hour
+         */     
+        protected static const maximumFetchTimeOutMs:Number =   3600000; // 1 hour
+        
         // Protected session variables
         /**
          * @private
          */ 
-        protected var _fetchTimer:Timer             =   null;
+        protected var _fetchDelayTimer:Timer             =   null;
 
         /**
          * @private
          */
-        protected var _fetchRetryTimer:Timer        =   null;
+        protected var _fetchEventsTimer:Timer        =   null;
  
         /**
          * @private
@@ -300,7 +314,12 @@ package com.aol.api.wim {
         /**
          * @private
          */
-        protected var _maxFetchTimeoutMs:uint       =   25000;
+        protected var _fetchRequestTimeoutMs:uint       =   25000;
+
+        /**
+         * @private
+         */
+        protected var _lastFetchEventsLoader:ResultLoader  =   null;
 
         /**
          * @private
@@ -315,7 +334,7 @@ package com.aol.api.wim {
         /**
          * @private
          */
-        protected var _secondsToNextReconnect:uint    =   30;
+        protected var _secondsToNextReconnect:uint    =   0;
 
         /**
          * @private
@@ -398,14 +417,14 @@ package com.aol.api.wim {
             _evtDispatch.addEventListener(SessionEvent.SESSION_STARTING, this.doStartSignedSession, false, 0, true);
             _evtDispatch.addEventListener(SessionEvent.EVENTS_FETCHING, this.doFetchEvents, false, 0, true);
             _evtDispatch.addEventListener(SessionEvent.SESSION_ENDING, this.doSignOff, false, 0, true);
-            _evtDispatch.addEventListener(UserEvent.MY_INFO_UPDATE_RESULT, this.doMyInfoUpdateResult, false, 0, true);
+            _evtDispatch.addEventListener(UserEvent.MY_INFO_UPDATED, this.doMyInfoUpdateResult, false, 0, true);
             
             // Fetch events retry schedule
             // TODO: Load our retry schedule externally?
             //["0":3,"5":6,"10":15,"12":30,"14":60,"18":120]
             // TODO: Find out how long host keeps a disconnected aimsid "alive" before it dumps it. We don't want to try more than that.
             reconnectSchedule = new Array();
-            reconnectSchedule[0] = 3; // the first 5 times will be every 2 seconds
+            reconnectSchedule[0] = 3; // the first 5 times will be every 3 seconds
             reconnectSchedule[5] = 6; // the next 5 times will be every 6 seconds
             reconnectSchedule[10] = 15;
             reconnectSchedule[12] = 30;
@@ -501,6 +520,7 @@ package com.aol.api.wim {
                 _auth.addEventListener(AuthEvent.LOGOUT,   onAuthSignOut, false, 0, true);
                 _auth.addEventListener(AuthEvent.CHALLENGE, onAuthChallenge, false, 0, true);
                 _auth.addEventListener(AuthEvent.ERROR,     onAuthError, false, 0, true);
+                _auth.addEventListener(IOErrorEvent.IO_ERROR, handleIOError, false, 0, true);
             }
             
             _auth.signOn(this._username, this._password, this._challengeAnswer, !this._challengeAnswer ? _forceCaptcha : false, this._getLongTermToken);
@@ -608,11 +628,7 @@ package com.aol.api.wim {
                queryString += "&assertCaps=" + encodeStrPart(assertCapabilities.join(","));            
             queryString += "&clientName="+encodeStrPart(_clientName);
             queryString += "&clientVersion="+encodeStrPart(_clientVersion);
-            queryString += "&events="+encodeStrPart("myInfo,presence,buddylist,typing,im,dataIM,offlineIM");
-DEV::internal_only
-{ 
-            queryString += encodeStrPart(",userAddedToBuddyList");
-} 
+            queryString += "&events="+encodeStrPart("myInfo,presence,buddylist,typing,im,dataIM,offlineIM,userAddedToBuddyList");
             queryString += "&f=amf3";
             if(interestedCapabilities) 
                 queryString += "&interestCaps=" + encodeStrPart(interestedCapabilities.join(","));
@@ -666,6 +682,7 @@ DEV::internal_only
             var statusText:String = response.statusText;
             
             if(statusCode == 200) {
+                _logger.debug("raw myInfo data: {0}",response.data.myInfo);
                 startWithSessionId(response.data.aimsid, response.data.fetchBaseURL, _parser.parseUser(response.data.myInfo));
             } else if (statusCode == 607) {
                 // Rate limited
@@ -698,12 +715,23 @@ DEV::internal_only
             _fetchEventsBaseUrl = baseUrl;
             _aimsid = sessionId; 
             _logger.debug("Session Started");
+            
+            // Set the _myInfo without dispatching a MY_INFO_UPDATED.  It's weird to 
+            // to not have this set when the STATE_CHANGED is called because someone might
+            // want to inspect the _myInfo when the state changes.  However, it might also be
+            // weird for MY_INFO_UPDATED to fire before STATE_CHANGED so we wait to call the 
+            // setMyInfo function.
+            _myInfo = myCurrentInfo;
             // this will dispatch a STATE_CHANGED event
             this.sessionState = SessionState.ONLINE;
             // this will dipatch a MY_INFO_UPDATED event
             this.setMyInfo(myCurrentInfo);           
             // start the fetchevents loop  
             if(_autoFetchEvents) {
+                if (!_fetchEventsTimer) {
+                    _fetchEventsTimer = new Timer(0, 1);
+                    _fetchEventsTimer.addEventListener(TimerEvent.TIMER_COMPLETE, scheduleNextFetchEvents, false, 0, true);
+                }
                 fetchEvents();
             }
         }
@@ -770,13 +798,19 @@ DEV::internal_only
          * @private
          */        
         protected function clearSession():void {
-            if(_fetchTimer && _fetchTimer.running) {
-                _fetchTimer.stop();
+            if(_fetchDelayTimer && _fetchDelayTimer.running) {
+                _fetchDelayTimer.stop();
             }
-            stopFetchRetryTimer();
+            if(_lastFetchEventsLoader)
+            {
+                _lastFetchEventsLoader = null;
+            }
             _numFetchRetries = 0;
             this.sessionState = SessionState.OFFLINE;
-            this.setMyInfo(null);
+            if(_myInfo != null)
+            {
+                this.setMyInfo(null);
+            }
         }
         
         /**
@@ -803,7 +837,7 @@ DEV::internal_only
          */
         protected function fetchEvents(evt:TimerEvent=null):void {
             if(this._state == SessionState.ONLINE || this._state == SessionState.RECONNECTING) {
-                // fetchEvents
+                // invokes doFetchEvents
                 dispatchEvent(new SessionEvent(SessionEvent.EVENTS_FETCHING, this, true, true));
             }
         }
@@ -814,23 +848,48 @@ DEV::internal_only
          * @private
          */
         protected function doFetchEvents(evt:SessionEvent):void {
-            // constructs the method request url
-            var query:String = this._fetchEventsBaseUrl +
-                "&f=amf3" +
-                "&timeout=" + _maxFetchTimeoutMs;
+            
+            var timeout:uint = _fetchRequestTimeoutMs;
+            
+            if (this._state == SessionState.RECONNECTING) {
+                if((_numFetchRetries <= maxReconnectAttempts) || (maxReconnectAttempts == -1))
+                {
+                    if(reconnectSchedule[_numFetchRetries]) {
+                        timeout = (reconnectSchedule[_numFetchRetries]) * 1000;
+                    } else {
+                        timeout = minimumFetchTimeOutMs;
+                    }
+                    _logger.debug("doFetchEvents: Attempting to reconnect with timeout " + timeout);                    
+                } else {
+                    // We're out of retries.
+                    _logger.debug("doFetchEvents: Max number of retries reached ("+maxReconnectAttempts+", retries="+_numFetchRetries+"), abandoning reconnect");
+                    this.sessionState = SessionState.DISCONNECTED;                    
+                }
+            }            
+            
+            if (this.sessionState != SessionState.DISCONNECTED) {
+                var query:String = this._fetchEventsBaseUrl + "&f=amf3&timeout=" + timeout;
+                    
+                _logger.debug("FetchEventsQuery: "+query);
                 
-            _logger.debug("FetchEventsQuery: "+query);
-            
-            _lastFetchEventsQuery = query;
-            // Manual sending of fetch events request
-            var theRequest:URLRequest = new URLRequest(query);
-            
-            var loader:ResultLoader = createURLLoader();
-            loader.maxTimeoutMs = _maxFetchTimeoutMs + 2000;
-            loader.addEventListener(Event.COMPLETE, fetchEventsResponse, false, 0, true);
-            loader.addEventListener(IOErrorEvent.IO_ERROR, handleFetchEventsIOError, false, 0, true);
-            loader.dataFormat = URLLoaderDataFormat.BINARY;
-            loader.load(theRequest);
+                _lastFetchEventsQuery = query;
+                // Manual sending of fetch events request
+                var theRequest:URLRequest = new URLRequest(query);
+                                
+                // This makes certain that we don't start a new fetch until after we've gotten a timeout from the loader.                    
+                _fetchEventsTimer.delay = timeout + 3000; 
+                _fetchEventsTimer.repeatCount = 1;                               
+                                
+                var loader:ResultLoader = createURLLoader();
+                loader.maxTimeoutMs = timeout + 2000;
+                loader.addEventListener(Event.COMPLETE, fetchEventsResponse, false, 0, true);
+                loader.addEventListener(IOErrorEvent.IO_ERROR, handleFetchEventsIOError, false, 0, true);
+                loader.dataFormat = URLLoaderDataFormat.BINARY;
+                loader.load(theRequest);
+                _fetchEventsTimer.start();
+                
+                _lastFetchEventsLoader = loader;
+            }
         }
         
         /**
@@ -842,54 +901,30 @@ DEV::internal_only
         protected function handleFetchEventsIOError(evt:IOErrorEvent):void {
             _logger.error("Fetch events IOError: "+evt.text);
             
-            /*
-             Respond to event here
-             */
+            
+             //Respond to event here
              // status code 2032 is stream error - socket could not be opened
              // that should happen when we are
              // 1 - lost connectivity
              // 2 - came back from standby?
-            if(this._state == SessionState.ONLINE || this._state == SessionState.RECONNECTING) {
-                // If maxReconnectAttemps is -1 or our num retries is less than the max...
-                if(maxReconnectAttempts < 0 || _numFetchRetries < maxReconnectAttempts) {
-                    // we are currently online, so attempt reconnecting
-                    this.sessionState = SessionState.RECONNECTING;
-                    if(reconnectSchedule[_numFetchRetries]) {
-                        _secondsToNextReconnect = reconnectSchedule[_numFetchRetries];
-                    }
-                    _logger.debug("Retry attempt: "+_numFetchRetries+": wait "+_secondsToNextReconnect+" seconds");
-                    if(_secondsToNextReconnect <= 0) {
-                        _secondsToNextReconnect = 0.1;
-                    }
-                    startFetchRetryTimer(_secondsToNextReconnect * 1000);
-                } else {
-                    // We have given up attempting to reconnect
-                    _logger.debug("Max number of retries reached ("+maxReconnectAttempts+", retries="+_numFetchRetries+"), abandoning reconnect");
-                    // we went from online --> disconnected 
-                    this.sessionState = SessionState.DISCONNECTED;
-                }
-            } else if(_state != SessionState.ONLINE && _state != SessionState.RECONNECTING) {
+            
+            // Clear our Loader object
+            _lastFetchEventsLoader = null;
+
+            // If we weren't online or reconnecting, then just switch to OFFLINE (no harm no foul!)
+            if(sessionState != SessionState.ONLINE && _state != SessionState.RECONNECTING) {
                 // we went from !online|reconnecting --> error, so just go back to offline
-                this.sessionState = SessionState.OFFLINE;
+                sessionState = SessionState.OFFLINE;
             }
-        }
-         
-        /**
-         * This is called by the fetchRetryTimer, when we are attempting
-         * a resending of the last fetchEvents query.
-         *  
-         * @param evt
-         * 
-         * @private
-         * 
-         */         
-        protected function onFetchRetry(evt:TimerEvent):void {
-            //_logger.debug("Timeout exceeded! Relaunching fetch Events");
-            // automatically launch another fetchevents
-            _numFetchRetries++;
-            _logger.debug("Retrying fetchEvents (attempt " + _numFetchRetries + 
-                          " out of " + this.maxReconnectAttempts + ")");
-            fetchEvents();
+            // If we were online when this happened, then this is the first time we have encountered an error
+            else if(sessionState == SessionState.ONLINE)
+            {
+                // We have encountered an error from our normal mode of operation, start the reconnecting process
+                // switch to RECONNECTING
+                sessionState = SessionState.RECONNECTING;
+                // Now just let our normal fetchEventsTimer run out.  We can't try to connect again to the server any earlier
+                // than that last timeout we gave it.                    
+            }
         }
         
         /**
@@ -899,6 +934,9 @@ DEV::internal_only
          */
         protected function fetchEventsResponse(evt:Event):void {
             var loader:ResultLoader = ResultLoader(evt.target);
+            
+            // Clear our stored loader handle
+            _lastFetchEventsLoader = null;
                      
             var response:Object = getResponseObject(loader.data);
             
@@ -910,7 +948,10 @@ DEV::internal_only
             var statusCode:uint = response.statusCode;
             var statusText:String = response.statusText;
             
-            if(statusCode != 200) _logger.debug("fetchEvents response: {0} ", response);
+            if(statusCode != 200) 
+            {
+                _logger.debug("fetchEvents response: {0} ", response);
+            }
             
             //var response:FetchEventsResponse = _parser.parseFetchEventsResponse(loader.data);
             if(statusCode == 200) {
@@ -920,7 +961,8 @@ DEV::internal_only
                 */
                 // If were previously trying to reconnect, set ourselves online again
                 if(_state == SessionState.RECONNECTING) {
-                    stopFetchRetryTimer();
+                    _logger.debug("SUCCESSFULLY RECONNECTED! Switching back to ONLINE...");
+                    _numFetchRetries = 0;
                     sessionState = SessionState.ONLINE;
                 }
                 
@@ -936,23 +978,8 @@ DEV::internal_only
                     _logger.error("error processing events: " + error.toString());
                 }
                 
-                if(_state == SessionState.ONLINE) {
-                 
-                    // We are still online, so go attempt another fetchEvents.
-                    // We have to check if we are online in case we sent an endSession event
-                    // and/or got knocked offline.
-                    if(this._autoFetchEvents) {
-                        if(!_fetchTimer) {
-                            this._fetchTimer = new Timer(_timeToNextFetchMs, 1); // Create a default Timer object for 0ms.
-                            this._fetchTimer.addEventListener(TimerEvent.TIMER_COMPLETE, fetchEvents, false, 0, true);
-                        }
-                        this._fetchTimer.repeatCount = 1;
-                        this._fetchTimer.delay = _timeToNextFetchMs;
-                        this._fetchTimer.start(); 
-                    }
-                } else {
-                    _logger.error("Received a successful fetchEvents, but our state is: "+this._state);
-                }
+                _logger.debug("fetchEvents request closed with a 200, scheduling next one");
+                scheduleNextFetchEvents();
                 
             } else if(statusCode == 460) {
                 // We have an invalid aimsid (perhaps because we were disconnected for a while and during a success reconnect we
@@ -974,29 +1001,31 @@ DEV::internal_only
             }
         }
         
-        /**
-         * @private 
-         */        
-        protected function startFetchRetryTimer(timeUntilFetch:int):void {
-            stopFetchRetryTimer();
-            // Set up a timer to verify that we get a response within our specified 
-            // max timeout - if we don't it means we lost connection to the server
-            if(!_fetchRetryTimer) {
-                _fetchRetryTimer = new Timer(0, 1);
-                _fetchRetryTimer.addEventListener(TimerEvent.TIMER_COMPLETE, onFetchRetry, false, 0, true);
-            }
-            _fetchRetryTimer.delay = timeUntilFetch;
-            _fetchRetryTimer.start();
-        }
-        
-        /**
-         * @private 
-         */        
-        protected function stopFetchRetryTimer(): void {
-            
-            if(_fetchRetryTimer && _fetchRetryTimer.running) {
-                _fetchRetryTimer.stop();
-            }
+        protected function scheduleNextFetchEvents(event:TimerEvent = null):void
+        {         
+            if (_fetchEventsTimer != null) {
+                _fetchEventsTimer.stop();
+            }          
+
+            // We have to check if we are online in case we sent an endSession event
+            // and/or got knocked offline.
+            if(_state == SessionState.ONLINE || _state == SessionState.RECONNECTING) {
+             
+                if (event) {
+                    _logger.debug("scheduling next fetch in {0}ms as a result of a timeout", _timeToNextFetchMs);
+                }               
+             
+                // We are still online, so go attempt another fetchEvents.
+                if(this._autoFetchEvents) {
+                    if(!_fetchDelayTimer) {
+                        this._fetchDelayTimer = new Timer(_timeToNextFetchMs, 1); 
+                        this._fetchDelayTimer.addEventListener(TimerEvent.TIMER_COMPLETE, fetchEvents, false, 0, true);
+                    }
+                    this._fetchDelayTimer.repeatCount = 1;
+                    this._fetchDelayTimer.delay = _timeToNextFetchMs;
+                    this._fetchDelayTimer.start(); 
+                }
+            } 
         }
         
         /**
@@ -1021,12 +1050,13 @@ DEV::internal_only
                     switch(type) {
                         
                         case FetchEventType.MY_INFO: 
-                            _logger.debug("Dispatching MY_INFO_UPDATE_RESULT");
+                            _logger.debug("Dispatching MY_INFO_UPDATED");
                             // TODO: Create a UserEvent to represent MY_INFO and PRESENCE events?
                             var myNewInfo:User = _parser.parseUser(eventData);
+                            _logger.debug("raw myInfo data: {0}",eventData);
                             _logger.debug("new myInfo data: {0}", myNewInfo);
                             this.setMyInfo(myNewInfo);
-                            //dispatchEvent(new UserEvent(UserEvent.MY_INFO_UPDATE_RESULT, myNewInfo, true, true));
+                            //dispatchEvent(new UserEvent(UserEvent.MY_INFO_UPDATED, myNewInfo, true, true));
                             break;
                       
                         case FetchEventType.PRESENCE: 
@@ -1078,7 +1108,7 @@ DEV::internal_only
                         
                         case FetchEventType.ADDED_TO_LIST:
                             var aimId:String = eventData.requester;
-                            var message:String = eventData.msg;
+                            var message:String = (eventData.msg) ? eventData.msg : "";
                             var authRequested:Boolean = eventData.authRequested;
                                                         
                             if(aimId) {
@@ -1154,6 +1184,17 @@ DEV::internal_only
          */
         public function setStatusMsg(statusMsg:String):void {
             // setStatus
+            _myInfo.statusMessage = statusMsg;
+            
+            var transaction:SetStatus;
+            if (!_transactions.setStatus)
+            {
+                transaction = new SetStatus(this);
+                _transactions.setStatus = transaction;
+            } else {
+                transaction = SetStatus(_transactions.setStatus);
+            }
+            transaction.run(_myInfo);
         }
         
         /**
@@ -1399,6 +1440,24 @@ DEV::internal_only
         }
         
         /**
+         * Adds temporary buddies so presence updates can be received for users 
+         * not on the buddy list. This call does NOT add users to the buddy list.
+         * Temp buddies are removed once the session ends.
+         *
+         * @param buddyNames Array of aimids to add as temp buddies.
+         */
+        public function addTempBuddy(buddyNames:Array):void {
+            var transaction:AddTempBuddy;
+            if(!_transactions.addTempBuddy) {
+                transaction = new AddTempBuddy(this);
+                _transactions.addTempBuddy = transaction;
+            } else {
+                transaction = _transactions.addTempBuddy as AddTempBuddy;
+            }
+            transaction.run(buddyNames);
+        }
+        
+        /**
          * Allows for the setting of various buddy attributes. The attributes are 
          * passed in as an object which properties that represent the attributes which 
          * are to be set. The following properties are allowed:
@@ -1433,7 +1492,7 @@ DEV::internal_only
             transaction.run(buddyName, groupName);
         }
         
-        public function reportSPIM(buddyName:String, type:String="spim", event:String="user"):void
+        public function reportSPIM(buddyName:String, type:String="spim", event:String="user", comment:String=null):void
         {
             var transaction:ReportSPIM;
             if(!_transactions.reportSPIM) {
@@ -1442,7 +1501,14 @@ DEV::internal_only
             } else {
                 transaction = _transactions.reportSPIM as ReportSPIM;
             }
-            transaction.run(buddyName, type, event);
+            
+            // Enforce 900 character limit.
+            if (comment.length > 900)
+            {
+                comment = comment.substr(0, 900);
+            }
+            
+            transaction.run(buddyName, type, event, comment);
         }
         
         /**
@@ -1473,17 +1539,17 @@ DEV::internal_only
             transaction.run(attributes);
         }
         
-        /** 
+        /**
          * Sets the state of the logged in user. 
          * 
-         * @param user This is the session's user with its state set to the
-         * appropriate value.   
-         *
-         *
-         * @see com.aol.api.wim.events.UserEvent#MY_INFO_UPDATING
-         * @see com.aol.api.wim.events.UserEvent#MY_INFO_UPDATE_RESULT  
-         */ 
-        public function setState(user:User):void {
+         * @param state A string representing the state. Must be one of PresenceState constants.
+         *              You cannot use PresenceState.OFFLINE or PresenceState.MOBILE
+         * @param optionalAwayMessage If state == PresenceState.AWAY, this away message is set as the custom away message
+         * 
+         * @see com.aol.api.wim.events.UserEvent#PRESENCE_STATE_UPDATING
+         * @see com.aol.api.wim.events.UserEvent#MY_INFO_UPDATED  
+         */         
+        public function setState(state:String, optionalAwayMessage:String=null):void {
             var transaction:SetState;
             if(!_transactions.setState) {
                transaction = new SetState(this);
@@ -1491,7 +1557,31 @@ DEV::internal_only
             } else {
                 transaction = _transactions.setState as SetState;
             }
-            transaction.run(user);
+            var newMyInfo:User = _myInfo;
+            newMyInfo.state = state;
+            if(state == PresenceState.AWAY && optionalAwayMessage)
+            {
+                newMyInfo.awayMessage = optionalAwayMessage;
+            }
+            transaction.run(newMyInfo);
+        }
+        
+        /**
+         * Retreive host based user preferences. If an array of strings is passed in,
+         * only those preferences will be retrieved.
+         * 
+         * @param preferences Optional. An array of strings representing a specific list of preferences to retreive.
+         * 
+         */
+        public function getPreference(preferences:Array=null):void {
+            var transaction:GetPreference;
+            if(!_transactions.getPreference) {
+                transaction = new GetPreference(this);
+                _transactions.getPreference = transaction;
+            } else {
+                transaction = _transactions.getPreference as GetPreference;
+            }
+            transaction.run(preferences);
         }
  
         /**
@@ -1522,6 +1612,10 @@ DEV::internal_only
         // Generic IO Error Event Listener
         private function handleIOError(evt:IOErrorEvent):void {
             _logger.error("IOError: "+evt.text);
+            
+            // If we are here, we got an IO error from either ClientLogin, startSession, or endSession
+            // Switch to disconnected
+            this.sessionState = SessionState.DISCONNECTED;
             /*
              Respond to event here
              */
@@ -1585,11 +1679,11 @@ DEV::internal_only
         }
         
         /**
-         * This sets our myInfo object and sends a MY_INFO_UPDATE_RESULT event. This is for internal use. 
+         * This sets our myInfo object and sends a MY_INFO_UPDATED event. This is for internal use. 
          * To change aspects of myInfo, refer to functions such as <code>setState</code> and <code>setStatusMsg</code>
          * @param info
          * 
-         * @see com.aol.api.wim.events.UserEvent#MY_INFO_UPDATE_RESULT
+         * @see com.aol.api.wim.events.UserEvent#MY_INFO_UPDATED
          * @see setState
          * @see setStatusMsg 
          */        
@@ -1598,8 +1692,8 @@ DEV::internal_only
             _myInfo = me;
             // Even though this is not from the server, we synthesize a "MY_INFO" event which represents the
             // fact that myInfo has been changed
-            var event:UserEvent = new UserEvent(UserEvent.MY_INFO_UPDATE_RESULT, me, true, true);
-            _logger.debug("about to dispatch new MY_INFO_UPDATE_RESULT containing: {0}", event.user);
+            var event:UserEvent = new UserEvent(UserEvent.MY_INFO_UPDATED, me, true, true);
+            _logger.debug("about to dispatch new MY_INFO_UPDATED containing: {0}", event.user);
             dispatchEvent(event);
         }
         
@@ -1667,8 +1761,8 @@ DEV::internal_only
         /**
          * Returns the maximum timeout for our fetch events request, in milliseconds
          */
-        public function get maxFetchTimeoutMs():uint {
-            return _maxFetchTimeoutMs;
+        public function get fetchTimeoutMs():uint {
+            return _fetchRequestTimeoutMs;
         }
         
         // Setter Methods ////////////////////////////////////////////////////////
@@ -1676,11 +1770,11 @@ DEV::internal_only
         /**
          * Sets the maximum timeout, in milliseconds, for the fetch events request. Minimum is 500, maximum is 3600000 (1 hour)
          */
-        public function set maxFetchTimeoutMs(timeout:uint):void {
-            if(timeout < 500) timeout = 500;
-            else if(timeout > 3600000) timeout = 3600000;
+        public function set fetchTimeoutMs(timeout:uint):void {
+            if(timeout < minimumFetchTimeOutMs) timeout = minimumFetchTimeOutMs;
+            else if(timeout > maximumFetchTimeOutMs) timeout = maximumFetchTimeOutMs;
             
-            _maxFetchTimeoutMs = timeout;
+            _fetchRequestTimeoutMs = timeout;
         }
         
         // Utility functions /////////////////////////////////////////////////////

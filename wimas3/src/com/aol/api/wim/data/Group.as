@@ -30,6 +30,11 @@ package com.aol.api.wim.data {
         public var users:Array;
         
         /**
+         * If this is a "recent users" group, users cannot be added to it.
+         */
+        public var recent:Boolean;
+        
+        /**
          * Creates a new group object. If no users array is passed in,
          * an empty array will be created.
          *  
@@ -40,6 +45,7 @@ package com.aol.api.wim.data {
         public function Group(name:String, users:Array=null) {
             this.label = name;
             this.users = (users == null) ? new Array() : users;
+            this.recent = false;
         }
 
         public function toString():String {

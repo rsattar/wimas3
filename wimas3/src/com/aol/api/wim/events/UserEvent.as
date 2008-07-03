@@ -7,14 +7,29 @@ package com.aol.api.wim.events {
     public class UserEvent extends Event {
         
         /**
-         * This event fires when our identity's information is about to be updated. 
+         * This event fires when our identity's state is about to be updated. 
          */
-        public static const MY_INFO_UPDATING:String          = "myInfoUpdating";
+        public static const PRESENCE_STATE_UPDATING:String          = "presenceStateUpdating";
+        
+        /**
+         * This event fires when our identity's state request is successfully completed. 
+         */
+        public static const PRESENCE_STATE_UPDATE_RESULT:String          = "presenceStateUpdateResult";
  
          /**
          * This event fires when our identity's information is updated. 
          */
-        public static const MY_INFO_UPDATE_RESULT:String          = "myInfoUpdateResult";
+        public static const MY_INFO_UPDATED:String          = "myInfoUpdateResult";
+        
+        /**
+         * This event fires when our status message is about to be updated.
+         */
+        public static const STATUS_MSG_UPDATING:String          = "statusMsgUpdating";
+ 
+         /**
+         * This event fires when our status message request is successfully completed. 
+         */
+        public static const STATUS_MSG_UPDATE_RESULT:String          = "statusMsgUpdateResult";
                
         /**
          * This event fires when a buddy's information is updated. 

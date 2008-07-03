@@ -32,6 +32,12 @@ package com.aol.api.wim.transactions {
     public class ResultLoader extends URLLoader {
         
         /**
+         * Since we cannot access our super-class's URL request object, we just store
+         * a copy of it here, for accessing it for logging
+         */        
+        public var currentRequest:URLRequest;
+        
+        /**
          * This context object can be set before the load() request is made.
          * It can then be retrieved by the calling application to retrieve its
          * context.
@@ -41,16 +47,25 @@ package com.aol.api.wim.transactions {
         /**
          * If <code>maxTimeoutMs</code> is non-zero, a timeout timer is fired,
          * which waits maxTimeoutMs milliseconds before firing an IOError. 
-         * 
+         * Some browsers like Firefox don't report network timeout errors to Flash.
          * To prevent a timer from running, set this back to 0.
          */        
         public var maxTimeoutMs:int     =   0;
         
         protected var maxTimeoutTimer:Timer;
         
-        public function ResultLoader(request:URLRequest=null, maxTimeoutMs:int=0, context:Object=null) {
+        /**
+         * Creates a ResultLoader object with an optional maxTimeout and a context object.
+         * The timeout and the contect object can be changed later through public properties. 
+         * @param request The URLRequest describing the location and 
+         * @param maxTimeoutMs, Default is 30000 (30 seconds). After 30 seconds of no response, an IO_ERROR will be dispatched
+         * @param context Optional. This can be set to any data desired so that it can be retrieved when the response is complete.
+         * 
+         */        
+        public function ResultLoader(request:URLRequest=null, maxTimeoutMs:int=30000, context:Object=null) {
             
             super(request);
+            currentRequest = request;
             this.maxTimeoutMs = maxTimeoutMs;
             this.context = context;
         }
@@ -67,7 +82,19 @@ package com.aol.api.wim.transactions {
             if(maxTimeoutMs > 0) {
                 startTimeoutTimer();
             }
+            currentRequest = request;
             super.load(request);
+        }
+        
+        /**
+         * This override adds the additional step of killing our timeout timer
+         * if it is running. 
+         * 
+         */        
+        public override function close():void {
+            // Kill the timeout timer if it is running
+            stopTimeoutTimer();
+            super.close();
         }
         
         /**
@@ -81,12 +108,12 @@ package com.aol.api.wim.transactions {
          * 
          */        
         protected function onTimeoutExceeded(evt:TimerEvent):void {
-            //trace("Timeout exceeded!");
+            trace("Timeout exceeded ("+(maxTimeoutMs/1000)+"s) requesting URL: "+(currentRequest ? currentRequest.url : "(unavailable)"));
             dispatchEvent(new IOErrorEvent(IOErrorEvent.IO_ERROR, false, false, "Timeout exceeded"));
         }
         
         /**
-         * The 'dispatchEvent' gets overridden so taht we can correctly cancel
+         * The 'dispatchEvent' gets overridden so that we can correctly cancel
          * the maxTimeoutTimer, if needed. 
          * @param event
          * @return 

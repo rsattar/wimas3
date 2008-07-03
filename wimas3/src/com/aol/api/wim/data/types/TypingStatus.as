@@ -24,16 +24,16 @@ package com.aol.api.wim.data.types {
         /**
         * Indicates that the user has not entered or has removed any text. 
         */
-        public static const NONE:String = "typing";
+        public static const NONE:String = "none";
 
         /**
         * Indicates the user is currently entering text. 
         */        
-        public static const TYPING:String = "typed";
+        public static const TYPING:String = "typing";
         
         /**
         * Indicates the user has entered text but is not currently typing.
         */        
-        public static const TYPED:String = "none";
+        public static const TYPED:String = "typed";
     }
 }

@@ -273,6 +273,7 @@ package com.aol.api.openauth
             var data:String = loader.data;
             
             _logger.debug("IOERROR, type="+event.type+", text="+event.text);
+            dispatchEvent(event);
         }
          
         /**

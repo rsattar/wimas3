@@ -97,7 +97,7 @@ package com.aol.api.wim.data {
         
         public function get bot():Boolean
         {
-            return (aimId == "aolsystemmsg") //fixme: hardcode this until SAWS gives a solution
+            return ((aimId == "aolsystemmsg") || (aimId == "aim")) //fixme: hardcode this until SAWS gives a solution
         }
         
         /**
@@ -121,14 +121,14 @@ package com.aol.api.wim.data {
             return "[User:" + aimId + 
                    ", displayId=" + displayId + 
                    ", friendlyName=" + friendlyName +
-                   ", emailId=" + emailId + 
                    ", state=" + state +
+                   ", awayMessage=" + awayMessage +
+                   ", statusMessage=" + statusMessage +
+                   ", emailId=" + emailId + 
                    ", onlineTime=" + onlineTime +
                    ", idleTime=" + idleTime +
                    ", awayTime=" + awayTime +
                    ", statusTime=" + statusTime +
-                   ", awayMessage=" + awayMessage +
-                   ", statusMessage=" + statusMessage +
                    ", buddyIconURL=" + buddyIconURL +
                    ", presenceIconURL=" + presenceIconURL +
                    ", memberSince=" + memberSince +

@@ -12,7 +12,7 @@ package com.aol.api.wim.transactions
             super(session);
         }
         
-        public function run(aimId:String, type:String="spim", event:String="user"):void
+        public function run(aimId:String, type:String="spim", event:String="user", comment:String=null):void
         {
             var evt:ReportSPIMEvent = new ReportSPIMEvent(ReportSPIMEvent.REPORT_SPIM_RESULT, true, false);
             evt.aimId = aimId;
@@ -24,9 +24,14 @@ package com.aol.api.wim.transactions
                 "?f=amf3" +
                 "&aimsid=" + _session.aimsid +
                 "&r=" + requestId + 
-                "&t=" + aimId +
+                "&t=" + encodeURIComponent(aimId) +
                 "&spimType=" + type + 
                 "&spimEvent=" + event;
+            if (comment) 
+            {
+                query += "&comment="+encodeURIComponent(comment);
+            }
+        
             sendRequest(_session.apiBaseURL + method + query);
         }
         

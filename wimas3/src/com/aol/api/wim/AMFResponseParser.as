@@ -75,7 +75,9 @@ package com.aol.api.wim {
                 users.push(parseUser(buddyObj));
             }
             
-            return new Group(data.name, users);
+            var g:Group = new Group(data.name, users);
+            if(data.recent == 1) g.recent = true;
+            return g;
         }
         
         // TODO: Verify that parseIM works once we get IM send/recv working
