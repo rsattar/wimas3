@@ -1,5 +1,7 @@
 package com.aol.api {
     
+    import com.aol.api.wim.data.types.PresenceState;
+    
     import flash.net.URLRequest;
     import flash.net.URLVariables;
     
@@ -161,6 +163,15 @@ package com.aol.api {
          */        
         protected var _buddyList:Object =   null;
         
+        /**
+         * This object represents our logged in user's info. It is maintained so that 
+         * state/status/profile manipulation functions (like SetState) can be tested correctly
+         * 
+         */
+        protected var _myInfo:Object    =   null;   
+        protected var _lastStatusMsgSet:String;
+        protected var _lastAwayMsgSet:String;     
+        
         public function MockServer() {
             super();
             if(MockServer._instance) {
@@ -229,6 +240,10 @@ package com.aol.api {
                     return requestEndSession(vars); break;
                 case "im/sendIM":
                     return requestSendIM(vars); break;
+                case "presence/setState":
+                    return requestSetState(vars); break;
+                case "presence/setStatus":
+                    return requestSetStatus(vars); break;
                 case "presence/get":
                     return requestGetPresence(vars); break;
                 case "buddylist/addBuddy":
@@ -239,6 +254,8 @@ package com.aol.api {
                     return requestGetMemberDirectory(vars); break;                
                 case "im/reportSPIM":
                     return requestReportSPIM(vars); break;
+                case "im/setTyping":
+                    return requestSetTyping(vars); break;
                 default : 
                     trace("unhandled transaction in mock server: "+transactionName);
                     return new Object();
@@ -273,7 +290,7 @@ package com.aol.api {
                 data : {
                     aimsid : _aimsid,
                     fetchBaseURL : "http://172.18.252.144:9359/aim/fetchEvents?aimsid="+_aimsid+"&seqNum="+this.fetchEventsSeqNum,
-                    myInfo : createMyInfo()
+                    myInfo : getMyInfo()
                 },
                 statusCode : 200,
                 statusText : "Ok"
@@ -337,7 +354,7 @@ package com.aol.api {
                         break;
                     case "myinfo":
                         // Add buddy list
-                        fetchEventsSuccess.data.events.push(createMyInfo(true));
+                        fetchEventsSuccess.data.events.push(getMyInfo(true));
                         break;
                     case "presence":
                         if(pendingPresenceEvents.length == 0) 
@@ -427,18 +444,23 @@ package com.aol.api {
             }
         }
         
-        private function createMyInfo(createEvent:Boolean=false):Object {
-            var myInfo:Object = {
-                aimId : this.authenticatedSN,
-                buddyIcon : "http://api-oscar.tred.aol.com:8000/expressions/getAsset?t="+this.authenticatedSN+"&f=native&id=00052b00002b40&type=buddyIcon",
-                displayId : this.authenticatedSN + " Name",
-                state : "online",
-                presenceIcon : "http://o.aolcdn.com/aim/img/online.gif"   
-            };
+        private function getMyInfo(createEvent:Boolean=false):Object {
+            if(!_myInfo)
+            {
+                // Create it the first time, default to online
+                _myInfo = {
+                    aimId : this.authenticatedSN,
+                    buddyIcon : "http://api-oscar.tred.aol.com:8000/expressions/getAsset?t="+this.authenticatedSN+"&f=native&id=00052b00002b40&type=buddyIcon",
+                    displayId : this.authenticatedSN + " Name",
+                    state : "online",
+                    presenceIcon : "http://o.aolcdn.com/aim/img/online.gif",
+                    ipCountry : "us"                        
+                };
+            }
             if(createEvent) {
-                return { eventData : myInfo, type : "myInfo" };
+                return { eventData : _myInfo, type : "myInfo" };
             } else {
-                return myInfo;
+                return _myInfo;
             }
         }
         
@@ -454,7 +476,7 @@ package com.aol.api {
             
             var num:int = optIndex >= 0 ? optIndex : ++buddyNumber;
             var buddy:Object = {
-                aimId : "Buddy"+num,
+                aimId : "buddy"+num,
                 displayId : "Buddy Name "+num,
                 state : "online",
                 statusMsg : "What number am I thinking of? "+num+"!"
@@ -472,7 +494,7 @@ package com.aol.api {
                 sourceBuddyIndex = 0;
             if(!msg) msg = "What's going on?";
             var request:Object = { 
-                requester: "Buddy"+sourceBuddyIndex,
+                requester: "buddy"+sourceBuddyIndex,
                 msg: msg,
                 authRequested: true
             };
@@ -521,13 +543,13 @@ package com.aol.api {
             var msgWords:Array = (vars.message as String).split(" ");
             if(msgWords[0] == "help")
             {
-                vars.t = vars.t.replace("Buddy", "");
+                vars.t = vars.t.replace("buddy", "");
                 pendingIMEvents.push(createIM(true, parseInt(vars.t), helpText));
                 eventsToReturn.push("im");
             }
             else if(msgWords[0] == "quote")
             {
-                vars.t = vars.t.replace("Buddy", "");
+                vars.t = vars.t.replace("buddy", "");
                 pendingIMEvents.push(createIM(true, parseInt(vars.t)));
                 eventsToReturn.push("im");
             }
@@ -566,7 +588,7 @@ package com.aol.api {
                 }
             }
             else if(echoIMs) {
-                vars.t = vars.t.replace("Buddy", "");
+                vars.t = vars.t.replace("buddy", "");
                 pendingIMEvents.push(createIM(true, parseInt(vars.t), "Echo: "+vars.message));
                 eventsToReturn.push("im");
             }
@@ -583,6 +605,157 @@ package com.aol.api {
                     requestId: vars.r
                 };
             }
+        }
+        
+        protected function requestSetState(vars:URLVariables):Object
+        {
+            var result:Object = getOKResponse(vars);
+            // TODO: check for invalid setState request variables in mock server
+            if(!_myInfo) getMyInfo(false);
+            var state:String = vars.view;
+            //if(state != _myInfo.state)
+            {
+               
+                _myInfo.presenceIcon = "http://o.aolcdn.com/aim/img/"+state+".gif";
+                if(state == PresenceState.AWAY)
+                {
+                    // Also set the away message
+                    _lastAwayMsgSet = vars.away ? "<div>"+vars.away+"</div>" : null;
+                    if(vars.away)
+                    {
+                        _myInfo.awayMsg = _lastAwayMsgSet;
+                        // Our status message gets temporarily overridden by the away message
+                        _myInfo.statusMsg = vars.away;
+                    }
+                    else
+                    {
+                        // we have no away msg, so we set our status message to "Away"
+                        _myInfo.awayMsg = "<div>Away</div>";
+                        _myInfo.statusMsg = "Away";
+                    }
+                }
+                else if(_myInfo.awayMsg)
+                {
+                    // remove the awayMsg property from our object
+                    delete _myInfo.awayMsg;
+                    // reset the status msg, if any
+                    if(_myInfo.state == PresenceState.AWAY && _myInfo.statusMsg)
+                    {
+                        // We are now online and were previously away, reset our statusMessage
+                        if(_lastStatusMsgSet)
+                        {
+                            _myInfo.statusMsg = _lastStatusMsgSet;
+                        }
+                        else
+                        {
+                            delete _myInfo.statusMsg;
+                        }
+                    }
+                }
+                // Finally update our state
+                _myInfo.state = state;
+                
+                // Add the new myinfo objec to our response
+                result.data = 
+                {
+                    myInfo : _myInfo
+                };
+                // Also line up a 'myInfo' for fetchEvents
+                eventsToReturn.push("myinfo");
+                // Check to see if we exist in our own buddy list
+                var blBuddy:Object = getBuddyFromBuddyList(_myInfo.aimId);
+                if(blBuddy)
+                {
+                    // Update our buddy state
+                    blBuddy.state = _myInfo.state;
+                    if(_myInfo.awayMsg)
+                    {
+                        blBuddy.awayMsg = _myInfo.awayMsg;
+                    }
+                    else
+                    {
+                        delete blBuddy.awayMsg;
+                    }
+                    if(_myInfo.statusMsg)
+                    {
+                        blBuddy.statusMsg = _myInfo.statusMsg;
+                    }
+                    else
+                    {
+                        delete blBuddy.statusMsg;
+                    }
+                    // Add a pending presence event
+                    var presenceEvt:Object = 
+                    {
+                        eventData : blBuddy,
+                        type : "presence"
+                    }
+                    pendingPresenceEvents.push(presenceEvt);
+                    eventsToReturn.push("presence");
+                }
+            }
+            return result;
+        }
+        
+        protected function requestSetStatus(vars:URLVariables):Object
+        {
+            var result:Object = getOKResponse(vars);
+            // TODO: check for invalid setState request variables in mock server
+            if(!_myInfo) getMyInfo(false);
+            var status:String = vars.statusMsg;
+            //if(state != _myInfo.state)
+            if(status && status != "")
+            {
+                // valid status
+                _lastStatusMsgSet = status;
+                if(_myInfo.state != PresenceState.AWAY)
+                {
+                    _myInfo.statusMsg = status;
+                }
+            }
+            else if(_myInfo.statusMsg)
+            {
+                // we need to clear the status
+                _lastStatusMsgSet = null;
+                if(_myInfo.state != PresenceState.AWAY)
+                {
+                    // we are not away (because away forces our status to be "Away"), so we can
+                    // delete our current status
+                    delete _myInfo.statusMsg;
+                }
+            }
+            
+            // Add the new myinfo objec to our response
+            //result.data = 
+            //{
+            //    myInfo : _myInfo
+            //};
+            // Also line up a 'myInfo' for fetchEvents
+            //eventsToReturn.push("myinfo");
+            
+            // Check to see if we exist in our own buddy list
+            var blBuddy:Object = getBuddyFromBuddyList(_myInfo.aimId);
+            if(blBuddy)
+            {
+                // update its statusMsg to match our myInfo
+                if(_myInfo.statusMsg)
+                {
+                    blBuddy.statusMsg = _myInfo.statusMsg;
+                }
+                else
+                {
+                    delete blBuddy.statusMsg;
+                }
+                // Add a pending presence event
+                var presenceEvt:Object = 
+                {
+                    eventData : blBuddy,
+                    type : "presence"
+                }
+                pendingPresenceEvents.push(presenceEvt);
+                eventsToReturn.push("presence");
+            }
+            return result;
         }
         
         protected function requestGetPresence(vars:URLVariables):Object
@@ -643,6 +816,11 @@ package com.aol.api {
         {
             var result:Object = getOKResponse(vars);
             return result;
+        }
+        
+        protected function requestSetTyping(vars:URLVariables):Object
+        {
+            return getOKResponse(vars);
         }
         
         protected function requestSearchMemberDirectory(vars:URLVariables):Object

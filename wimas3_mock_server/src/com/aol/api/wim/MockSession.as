@@ -24,8 +24,8 @@ package com.aol.api.wim
         }
         
         public function runFetchEventsNow():void {
-            if(this._fetchTimer && this._fetchTimer.running) {
-                this._fetchTimer.stop();
+            if(this._fetchDelayTimer && this._fetchDelayTimer.running) {
+                this._fetchDelayTimer.stop();
             }
             this.fetchEvents(null);
         }
