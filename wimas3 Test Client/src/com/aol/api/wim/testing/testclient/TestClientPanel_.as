@@ -10,10 +10,12 @@ import com.aol.api.wim.data.BuddyList;
 import com.aol.api.wim.data.Group;
 import com.aol.api.wim.data.User;
 import com.aol.api.wim.data.types.AuthChallengeType;
+import com.aol.api.wim.data.types.PresenceState;
 import com.aol.api.wim.data.types.SessionState;
 import com.aol.api.wim.events.AuthChallengeEvent;
 import com.aol.api.wim.events.BuddyListEvent;
 import com.aol.api.wim.events.SessionEvent;
+import com.aol.api.wim.events.UserEvent;
 import com.aol.api.wim.testing.testclient.TestClientLogger;
 
 import flash.events.TimerEvent;
@@ -37,6 +39,8 @@ private var _sessionKey:String;
 private var _fetchTimer:Timer;
 private var _fetchTimerTicksRemaining:int;
 private var _captchaImageDummyRequestId:int = 0;
+
+private var _updatingMyInfo:Boolean = false;
         
 // Constants defining server URLs /////////////////////////////////////////////////////
 protected static const WIM_BASE:String      =   "http://api.oscar.aol.com/";
@@ -119,6 +123,32 @@ private function signOnToggle():void {
     }
 }
 
+private function updateAwayMsg():void {
+    if(_session.myInfo.state == PresenceState.AWAY) {
+        // 
+        //var newMyInfo:User = _session.myInfo;
+        var awayMsgToSet:String = awayMsgInput.text.length > 0 ? awayMsgInput.text : null;
+        _session.setState(_session.myInfo.state, awayMsgToSet);
+    }
+}
+
+private function updateState():void {
+    if(_updatingMyInfo) return;
+    var state:String = stateCombo.selectedItem.value;
+    if(state != _session.myInfo.state) {
+        //var newMyInfo:User = _session.myInfo;
+        var awayMsgToSet:String = (state == PresenceState.AWAY && awayMsgInput.text.length > 0) ? awayMsgInput.text : null;
+        _session.setState(state, awayMsgToSet);
+    }
+}
+
+private function updateStatus():void {
+    var statusText:String = statusMsgInput.text;
+    if(statusText != _session.myInfo.statusMessage) {
+        _session.setStatusMsg(statusText);
+    }
+}
+
 private function signOn():void {
     
     
@@ -187,6 +217,7 @@ private function createSession():Session {
     session.addEventListener(SessionEvent.STATE_CHANGED, onSessionStateChange);
     session.addEventListener(SessionEvent.EVENTS_FETCHED, onEventsFetched);
     session.addEventListener(BuddyListEvent.LIST_RECEIVED, onBLReceived);
+    session.addEventListener(UserEvent.MY_INFO_UPDATED, onMyInfoUpdated);
     
     return session;
 }
@@ -317,6 +348,36 @@ private function onEventsFetched(evt:SessionEvent):void {
 private function onBLReceived(event:BuddyListEvent):void {
     logInfo("Buddy List Received: "+event.buddyList);
     _blObjectTree = event.buddyList;
+}
+
+private function onMyInfoUpdated(event:UserEvent):void {
+    _updatingMyInfo = true;
+    var myInfo:User = event.user;
+    // update our state combo
+    var indexToSelect:int = -1;
+    switch(myInfo.state)
+    {
+        case PresenceState.AVAILABLE:
+            indexToSelect = 0; break;
+        case PresenceState.AWAY:
+            indexToSelect = 1; break;
+        case PresenceState.INVISIBLE:
+            indexToSelect = 2; break;
+        case PresenceState.IDLE:
+            indexToSelect = 3; break;
+        case PresenceState.NOT_FOUND:
+            indexToSelect = 4; break;
+    }
+    // This will cause the "CHANGE" event to fire in combobox, so check for _updatingMyInfo there
+    stateCombo.selectedIndex = indexToSelect;
+    
+    //if(myInfo.state == PresenceState.AWAY) 
+    {
+        // update our awayMsg field
+        awayMsgInput.text = myInfo.awayMessage ? myInfo.awayMessage : "";
+    }
+    statusMsgInput.text = myInfo.statusMessage ? myInfo.statusMessage : "";
+    _updatingMyInfo = false;
 }
 
 private function logInfo(s:String):void {
