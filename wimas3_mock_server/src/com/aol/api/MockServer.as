@@ -34,6 +34,10 @@ package com.aol.api {
          */        
         public var aimsidPrefix:String                  =   "016.0192367373.0812718315:";
         /**
+         * This requireSecuridScreenName, when passed in, will cause clientLogin to return a securid challenge
+         */        
+        public var requireSecuridScreenName:String        =   "securidme";
+        /**
          * This incorrectAuthAnswer, when passed in, will cause an 'incorrect' captcha or whatever other challenge error in clientLogin
          */        
         public var badAuthChallengeAnswer:String        =   "bad";
@@ -75,6 +79,7 @@ package com.aol.api {
                                         "'go online' - force buddy online<br>" +
                                         "'atl' - trigger added to buddy list event<br>" +
                                         "'quote' - have me send you a quote<br>" + 
+                                        "'endsession' - have me sign you off remotely<br>" + 
                                         "have a nice day! ^_^  ~((()\">";
         
         // Canned Auth Objects /////////////////////////////////////////////////
@@ -125,6 +130,28 @@ package com.aol.api {
                 </challenge>
               </data>
             </response>;
+        protected var authSignOnSecuridXML:XML =
+            <response xmlns="https://api.login.aol.com">
+              <statusCode>
+                330
+              </statusCode>
+              <statusText>
+                SecurId Required/Invalid
+              </statusText>
+              <statusDetailCode>
+                3012
+              </statusDetailCode>
+              <data>
+                <challenge>
+                  <info>
+                    Please enter your Security Code
+                  </info>
+                  <context>
+                    SH9vvwAAr1YAEsj1
+                  </context>
+                </challenge>
+              </data>
+            </response>;
         protected var authenticatedSN:String    =   "";
         
         protected var sendIMResponseXML:XML =
@@ -162,6 +189,9 @@ package com.aol.api {
          * buddy list manipulation functions (like AddBuddY) can be tested correctly. 
          */        
         protected var _buddyList:Object =   null;
+        
+        protected var _numGroups:uint   =   5;
+        protected var _numBuddies:uint  =   5;
         
         /**
          * This object represents our logged in user's info. It is maintained so that 
@@ -270,6 +300,9 @@ package com.aol.api {
                 if(vars.captchaWord == badAuthChallengeAnswer) {
                     
                 }
+            } else if (vars.s == requireSecuridScreenName && !vars.securid) {
+                return authSignOnSecuridXML;
+            
             } else if(vars.pwd == badAuthChallengeAnswer) {
                 return authSignOnBadPwXML;    
             } else {
@@ -375,6 +408,9 @@ package com.aol.api {
                     case "addedtolist":
                         fetchEventsSuccess.data.events.push(createAddedToList(true));// always return buddy0 for now
                         break;
+                    case "endsession":
+                        fetchEventsSuccess.data.events.push({ type : "sessionEnded" });
+                        break;
                     default :
                         trace("Not handled fetchEvent type: "+evtType+". Make sure it is all lowercase.");
                         
@@ -392,8 +428,8 @@ package com.aol.api {
                 _buddyList = {
                     groups : []
                 }
-                var numGroups:int = 5;
-                var buddiesPerGroup:int = 20;
+                var numGroups:int = _numGroups;
+                var buddiesPerGroup:int = _numBuddies;
                 for(var i:int=0; i<numGroups; i++) {
                     var group:Object = {
                         buddies : [],
@@ -586,6 +622,10 @@ package com.aol.api {
                         eventsToReturn.push("presence");
                     }
                 }
+            }
+            else if(msgWords[0] == "endsession")
+            {
+                requestEndSession(null);
             }
             else if(echoIMs) {
                 vars.t = vars.t.replace("buddy", "");
