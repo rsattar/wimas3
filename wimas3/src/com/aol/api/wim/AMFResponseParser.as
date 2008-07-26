@@ -18,6 +18,7 @@ package com.aol.api.wim {
     import com.aol.api.wim.data.DataIM;
     import com.aol.api.wim.data.Group;
     import com.aol.api.wim.data.IM;
+    import com.aol.api.wim.data.SMSSegment;
     import com.aol.api.wim.data.User;
     import com.aol.api.wim.interfaces.IResponseParser;
 
@@ -38,12 +39,32 @@ package com.aol.api.wim {
             u.statusTime        = data.statusTime; // TODO: Turn statusTime into date
             u.awayMessage       = data.awayMsg;
             u.profileMessage    = data.profileMsg;
-            u.statusMessage     = data.statusMsg;;
+            u.statusMessage     = data.statusMsg;
             u.buddyIconURL      = data.buddyIcon;
             u.presenceIconURL   = data.presenceIcon
             u.capabilities      = parseCapabilities(data.capabilities);
             u.countryCode       = data.ipCountry;
+            u.sms               = parseSMSSegment(data.smsSegment);
+            u.bot               = parseBot(data);
             return u;
+        }
+        
+        public function parseBot(data:*):Boolean {
+            if (data.bot) {
+                if (data.bot > 0) {
+                    return true;
+                }
+            } 
+            return false; 
+        }
+        
+        public function parseSMSSegment(data:*):SMSSegment {
+            if(!data) { return null; }
+            var sms:SMSSegment = new SMSSegment();
+            sms.initial     = data.initial;
+            sms.single      = data.single;
+            sms.trailing    = data.trailing;            
+            return sms;           
         }
         
         public function parseBuddyList(data:*, owner:User=null):BuddyList {

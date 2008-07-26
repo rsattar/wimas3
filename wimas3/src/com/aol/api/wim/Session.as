@@ -299,7 +299,7 @@ package com.aol.api.wim {
         /**
          * @private
          */
-        protected var _fetchEventsTimer:Timer        =   null;
+        protected var _fetchEventsTimer:Timer        =   null;        
  
         /**
          * @private
@@ -309,12 +309,12 @@ package com.aol.api.wim {
         /**
          * @private
          */
-        protected var _timeToNextFetchMs:uint       =   0;
+        protected var _timeToNextFetchMs:uint       =   500;
 
         /**
          * @private
          */
-        protected var _fetchRequestTimeoutMs:uint       =   25000;
+        protected var _fetchRequestTimeoutMs:uint       =   60000;
 
         /**
          * @private
@@ -798,18 +798,37 @@ package com.aol.api.wim {
          * @private
          */        
         protected function clearSession():void {
-            if(_fetchDelayTimer && _fetchDelayTimer.running) {
-                _fetchDelayTimer.stop();
-            }
+            stopFetchTimers();
             if(_lastFetchEventsLoader)
             {
-                _lastFetchEventsLoader = null;
+                clearLoader();
             }
             _numFetchRetries = 0;
             this.sessionState = SessionState.OFFLINE;
             if(_myInfo != null)
             {
-                this.setMyInfo(null);
+                _myInfo.state = PresenceState.OFFLINE;
+                this.setMyInfo(_myInfo);
+                _myInfo = null;
+            }
+        }
+        
+        /**
+         * This causes all the timers related to scheduling the next fetch events, or delaying to launch
+         * another fetchEvents to stop immediately. 
+         * 
+         */        
+        protected function stopFetchTimers():void
+        {
+            // Stop our fetch events timer
+            if (_fetchEventsTimer && _fetchEventsTimer.running) {
+                _fetchEventsTimer.stop();
+                //_logger.debug(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STOPPED FETCH EVENTS TIMER <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<");
+            }
+            // Stop our fetch events delay timer
+            if(_fetchDelayTimer && _fetchDelayTimer.running) {
+                _fetchDelayTimer.stop();
+                //_logger.debug(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STOPPED FETCH EVENTS DELAY TIMER <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<");
             }
         }
         
@@ -852,23 +871,24 @@ package com.aol.api.wim {
             var timeout:uint = _fetchRequestTimeoutMs;
             
             if (this._state == SessionState.RECONNECTING) {
-                if((_numFetchRetries <= maxReconnectAttempts) || (maxReconnectAttempts == -1))
+                if((_numFetchRetries < maxReconnectAttempts) || (maxReconnectAttempts == -1))
                 {
                     if(reconnectSchedule[_numFetchRetries]) {
                         timeout = (reconnectSchedule[_numFetchRetries]) * 1000;
                     } else {
                         timeout = minimumFetchTimeOutMs;
                     }
+                    _numFetchRetries++;
                     _logger.debug("doFetchEvents: Attempting to reconnect with timeout " + timeout);                    
                 } else {
                     // We're out of retries.
                     _logger.debug("doFetchEvents: Max number of retries reached ("+maxReconnectAttempts+", retries="+_numFetchRetries+"), abandoning reconnect");
-                    this.sessionState = SessionState.DISCONNECTED;                    
+                    this.sessionState = SessionState.DISCONNECTED; 
                 }
             }            
             
             if (this.sessionState != SessionState.DISCONNECTED) {
-                var query:String = this._fetchEventsBaseUrl + "&f=amf3&timeout=" + timeout;
+                var query:String = this._fetchEventsBaseUrl + "&f=amf3&timeout=" + timeout + "&cacheDefeat=" + new Date().time;
                     
                 _logger.debug("FetchEventsQuery: "+query);
                 
@@ -877,18 +897,20 @@ package com.aol.api.wim {
                 var theRequest:URLRequest = new URLRequest(query);
                                 
                 // This makes certain that we don't start a new fetch until after we've gotten a timeout from the loader.                    
-                _fetchEventsTimer.delay = timeout + 3000; 
+                _fetchEventsTimer.delay = timeout + 11000; 
                 _fetchEventsTimer.repeatCount = 1;                               
                                 
                 var loader:ResultLoader = createURLLoader();
-                loader.maxTimeoutMs = timeout + 2000;
+                loader.maxTimeoutMs = 0;
                 loader.addEventListener(Event.COMPLETE, fetchEventsResponse, false, 0, true);
                 loader.addEventListener(IOErrorEvent.IO_ERROR, handleFetchEventsIOError, false, 0, true);
                 loader.dataFormat = URLLoaderDataFormat.BINARY;
+                
+                _lastFetchEventsLoader = loader;
+                
                 loader.load(theRequest);
                 _fetchEventsTimer.start();
                 
-                _lastFetchEventsLoader = loader;
             }
         }
         
@@ -908,8 +930,7 @@ package com.aol.api.wim {
              // 1 - lost connectivity
              // 2 - came back from standby?
             
-            // Clear our Loader object
-            _lastFetchEventsLoader = null;
+            clearLoader();
 
             // If we weren't online or reconnecting, then just switch to OFFLINE (no harm no foul!)
             if(sessionState != SessionState.ONLINE && _state != SessionState.RECONNECTING) {
@@ -920,10 +941,20 @@ package com.aol.api.wim {
             else if(sessionState == SessionState.ONLINE)
             {
                 // We have encountered an error from our normal mode of operation, start the reconnecting process
-                // switch to RECONNECTING
-                sessionState = SessionState.RECONNECTING;
-                // Now just let our normal fetchEventsTimer run out.  We can't try to connect again to the server any earlier
-                // than that last timeout we gave it.                    
+                if(maxReconnectAttempts == 0)
+                {
+                    // we don't allow reconnecting, just switch to disconnected
+                    sessionState = SessionState.DISCONNECTED;
+                    // Stop our fetch events timer
+                    stopFetchTimers();    
+                }
+                else
+                {
+                    // switch to RECONNECTING
+                    sessionState = SessionState.RECONNECTING;
+                    // Now just let our normal fetchEventsTimer run out.  We can't try to connect again to the server any earlier
+                    // than that last timeout we gave it.  
+                }              
             }
         }
         
@@ -935,8 +966,7 @@ package com.aol.api.wim {
         protected function fetchEventsResponse(evt:Event):void {
             var loader:ResultLoader = ResultLoader(evt.target);
             
-            // Clear our stored loader handle
-            _lastFetchEventsLoader = null;
+            clearLoader();
                      
             var response:Object = getResponseObject(loader.data);
             
@@ -952,6 +982,8 @@ package com.aol.api.wim {
             {
                 _logger.debug("fetchEvents response: {0} ", response);
             }
+            // Since we got a correct response - we should always be stopping any existing fetchTimer
+            stopFetchTimers();
             
             //var response:FetchEventsResponse = _parser.parseFetchEventsResponse(loader.data);
             if(statusCode == 200) {
@@ -1001,11 +1033,19 @@ package com.aol.api.wim {
             }
         }
         
+        protected function clearLoader():void
+        {
+            if(!_lastFetchEventsLoader) return;
+            _lastFetchEventsLoader.removeEventListener(Event.COMPLETE, fetchEventsResponse);
+            _lastFetchEventsLoader.removeEventListener(IOErrorEvent.IO_ERROR, handleFetchEventsIOError);
+            _lastFetchEventsLoader.currentRequest = null;
+            _lastFetchEventsLoader.close();            
+            _lastFetchEventsLoader = null;
+        }
+        
         protected function scheduleNextFetchEvents(event:TimerEvent = null):void
         {         
-            if (_fetchEventsTimer != null) {
-                _fetchEventsTimer.stop();
-            }          
+            stopFetchTimers();
 
             // We have to check if we are online in case we sent an endSession event
             // and/or got knocked offline.
@@ -1502,11 +1542,11 @@ package com.aol.api.wim {
                 transaction = _transactions.reportSPIM as ReportSPIM;
             }
             
-            // Enforce 900 character limit.
-            if (comment.length > 900)
+            // Enforce 900 byte limit.
+            while (countBytes(comment) > 900)
             {
-                comment = comment.substr(0, 900);
-            }
+                comment = comment.substr(0, comment.length-1);    
+            }             
             
             transaction.run(buddyName, type, event, comment);
         }
@@ -1616,6 +1656,7 @@ package com.aol.api.wim {
             // If we are here, we got an IO error from either ClientLogin, startSession, or endSession
             // Switch to disconnected
             this.sessionState = SessionState.DISCONNECTED;
+            stopFetchTimers();
             /*
              Respond to event here
              */
@@ -1809,6 +1850,16 @@ package com.aol.api.wim {
                 
         public function toString():String {
             return "[Session]";
+        }
+        
+        /**
+         * Utility call to count the bytes in a string.
+         */
+        public static function countBytes(string:String):uint {
+            var byteArray:ByteArray = new ByteArray();
+            byteArray.writeUTF(string);
+            byteArray.position = 0;
+            return (byteArray.bytesAvailable-2);
         }
     }
 }

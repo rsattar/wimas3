@@ -1,4 +1,5 @@
 package com.aol.api.wim.data {
+    import com.aol.api.wim.data.types.PresenceState;
     import com.aol.api.wim.data.types.UserType;
     
     
@@ -85,7 +86,17 @@ package com.aol.api.wim.data {
         * Country code from which user is logged in; only set for logged in user.
         */ 
         public var countryCode:String = null;
-                
+
+        /**
+        * SMS messagining metrics.  Only set for mobile users.
+        */
+        public var sms:SMSSegment = null;     
+                        
+        /**
+         * Toaster?
+         */  
+        public var bot:Boolean = false;
+        
         /**
         * Returns the displayId, or aimId if displayId is undefined.
         * This is a read-only property. Set displayId or aimId instead.
@@ -94,12 +105,11 @@ package com.aol.api.wim.data {
         {
             return friendlyName ? friendlyNameFormat.replace(/\{0\}/g, friendlyName) : (displayId ? displayId : aimId);
         }
-        
-        public function get bot():Boolean
+       
+        public function get mobile():Boolean
         {
-            return ((aimId == "aolsystemmsg") || (aimId == "aim")) //fixme: hardcode this until SAWS gives a solution
+            return (isFollowMe || (userType == UserType.SMS) || (state == PresenceState.MOBILE))            
         }
-        
         /**
          * @private  
          */
@@ -133,6 +143,7 @@ package com.aol.api.wim.data {
                    ", presenceIconURL=" + presenceIconURL +
                    ", memberSince=" + memberSince +
                    ", capabilities=" + capabilities + 
+                   ", smsSegment=" + sms +
                    "]";
         }
         
