@@ -19,6 +19,6 @@ package com.aol.api {
      * printed by the logger when it starts up.
      */
     public class Version {
-        public static const NUMBER:String = "0,1458";
+        public static const NUMBER:String = "0,1516";
     }
 }

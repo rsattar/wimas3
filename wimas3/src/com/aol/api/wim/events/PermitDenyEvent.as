@@ -10,6 +10,7 @@ package com.aol.api.wim.events
      */
     public class PermitDenyEvent extends Event
     {
+        public static const GET_PD_RESULT:String = "getPermitDenyResult";
         public static const SET_PD_RESULT:String = "setPermitDenyResult";
         /**
          * The result of the request.  For now, see the WIM documentation 

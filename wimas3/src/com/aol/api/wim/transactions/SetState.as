@@ -44,10 +44,15 @@ package com.aol.api.wim.transactions {
                 "&aimsid=" + _session.aimsid +
                 "&r=" + requestId +
                 "&view=" + encodeURIComponent(evt.user.state);
-                if (evt.user.state == PresenceState.AWAY && evt.user.awayMessage != null)
-                { 
-                    query  += "&away=" + encodeURIComponent(evt.user.awayMessage);
-                }
+            if (evt.user.state == PresenceState.AWAY && evt.user.awayMessage != null)
+            { 
+                query  += "&away=" + encodeURIComponent(evt.user.awayMessage);
+            }
+            if(_session.isAnonymous && evt.user.aimId != evt.user.displayId)
+            {
+                // if displayId does not match, we use displayId as the new "friendly" parameter to set (only for anonymous sessions)
+                query += "&friendly=" + evt.user.displayId;
+            }
             _logger.debug("SetState: " + _session.apiBaseURL + method + query);
             sendRequest(_session.apiBaseURL + method + query);
         }

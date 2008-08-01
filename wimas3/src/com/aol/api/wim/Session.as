@@ -43,6 +43,7 @@ package com.aol.api.wim {
     import com.aol.api.wim.transactions.AddBuddy;
     import com.aol.api.wim.transactions.AddTempBuddy;
     import com.aol.api.wim.transactions.GetMemberDirectory;
+    import com.aol.api.wim.transactions.GetPermitDeny;    
     import com.aol.api.wim.transactions.GetPreference;
     import com.aol.api.wim.transactions.GetPresence;
     import com.aol.api.wim.transactions.RemoveBuddy;
@@ -358,6 +359,31 @@ package com.aol.api.wim {
          */
         protected var _myInfo:User                  =   null;
         
+        // Anonymous Session Variables - these are only set when we signOnAnonymous (like Wimzi)
+        /**
+         * For anonymous sessions only, this is the name that we use to show to the creator on their buddy list.
+         * If it is null, the normal generic "aimguestXXXXXXXX" is shown. 
+         */        
+        protected var _anonymousDisplayName:String;
+        /**
+         * For anonymous sessions only, this is the name that represents the target of the anonymous session. 
+         */        
+        protected var _anonymousCreatorDisplayName:String;
+        /**
+         * For anonymous sessions only, this is the message the creator chose to show the user when they
+         * are available for chatting. 
+         */        
+        protected var _anonymousWidgetAvailableMsg:String;
+        /**
+         * For anonymous sessions only, this is the message the creator chose to show the user when they
+         * are not available for chatting.
+         */        
+        protected var _anonymousWidgetUnavailableMsg:String;
+        /**
+         * For anonymous sessions only, this is the title of the widget chosen by the creator. 
+         */        
+        protected var _anonymousWidgetTitle:String;
+        
         // Event Model variables
 
         /**
@@ -414,7 +440,7 @@ package com.aol.api.wim {
             
             // Now register as targets for all of our events so we can allow being cancelled, modified, etc.
             _evtDispatch.addEventListener(SessionEvent.SESSION_AUTHENTICATING, this.doAuthenticateSession, false, 0, true);
-            _evtDispatch.addEventListener(SessionEvent.SESSION_STARTING, this.doStartSignedSession, false, 0, true);
+            _evtDispatch.addEventListener(SessionEvent.SESSION_STARTING, this.doStartSession, false, 0, true);
             _evtDispatch.addEventListener(SessionEvent.EVENTS_FETCHING, this.doFetchEvents, false, 0, true);
             _evtDispatch.addEventListener(SessionEvent.SESSION_ENDING, this.doSignOff, false, 0, true);
             _evtDispatch.addEventListener(UserEvent.MY_INFO_UPDATED, this.doMyInfoUpdateResult, false, 0, true);
@@ -616,7 +642,13 @@ package com.aol.api.wim {
          * @param evt
          * 
          */
-        private function doStartSignedSession(evt:SessionEvent):void {
+        private function doStartSession(evt:SessionEvent):void {
+            
+            if(_isAnonymousSession)
+            {
+                doStartSessionAnonymous(evt);
+                return;
+            }
             
             var method:String = "aim/startSession";
             var queryString:String = "";
@@ -683,6 +715,13 @@ package com.aol.api.wim {
             
             if(statusCode == 200) {
                 _logger.debug("raw myInfo data: {0}",response.data.myInfo);
+                if(_isAnonymousSession)
+                {
+                    _anonymousCreatorDisplayName = response.data.creatorDisplayName;
+                    _anonymousWidgetAvailableMsg = response.data.greetingMsg;
+                    _anonymousWidgetUnavailableMsg = response.data.offlineMsg;
+                    _anonymousWidgetTitle = response.data.widgetTitle;
+                }
                 startWithSessionId(response.data.aimsid, response.data.fetchBaseURL, _parser.parseUser(response.data.myInfo));
             } else if (statusCode == 607) {
                 // Rate limited
@@ -744,6 +783,25 @@ package com.aol.api.wim {
             // startSession
             // TODO: Perhaps add a 'signInAsInvisible' param? or even a 'signInAs' state object? (so you can sign in as away)
             _isAnonymousSession = true;
+            _anonymousDisplayName = displayName;
+            
+            // Set our state to STARTING
+            this.sessionState = SessionState.STARTING;
+            // Dispatch a capturable SESSION_STARTING event
+            // TODO: Rename SESSION_STARTING to SESSION_SIGNING_ON to avoid confusion with SessionState.STARTING?
+            dispatchEvent(new SessionEvent(SessionEvent.SESSION_STARTING, this, true, true));
+        }
+        
+        protected function doStartSessionAnonymous(evt:SessionEvent):void
+        {
+            var method:String = "aim/startSession";
+            var queryString:String = "anonymous=1&k=" + this.devId + "&f=amf3&events=presence,im";
+            if(_anonymousDisplayName)
+            {
+                queryString += "&friendly="+_anonymousDisplayName;
+            }
+            _logger.debug("StartAnonymousSessionQuery: "+queryString);
+            sendRequest(apiBaseURL + method + "?"+queryString, startSessionResponse);
         }
         
         /**
@@ -1053,6 +1111,12 @@ package com.aol.api.wim {
              
                 if (event) {
                     _logger.debug("scheduling next fetch in {0}ms as a result of a timeout", _timeToNextFetchMs);
+                    if(_state != SessionState.RECONNECTING)
+                    {
+                        // switch to reconnecting mode. This is reached basically if we got no report of an error, yet we still timed out
+                        // this is common in Firefox 2, as it never reports to Flash of an IO Error
+                        sessionState = SessionState.RECONNECTING;
+                    }
                 }               
              
                 // We are still online, so go attempt another fetchEvents.
@@ -1552,6 +1616,21 @@ package com.aol.api.wim {
         }
         
         /**
+         * Fetches the user's Permit/Deny lists and settings.
+         */
+         public function getPermitDeny():void
+         {
+            var transaction:GetPermitDeny;
+            if(!_transactions.getPermitDeny) {
+                transaction = new GetPermitDeny(this);
+                _transactions.getPermitDeny = transaction;
+            } else {
+                transaction = _transactions.getPermitDeny as GetPermitDeny;
+            }
+            transaction.run();             
+         }  
+        
+        /**
          * Takes in an object that represents all the parameters for the call. Allowed properties on the 
          * object are as follows:
          * 
@@ -1604,6 +1683,32 @@ package com.aol.api.wim {
                 newMyInfo.awayMessage = optionalAwayMessage;
             }
             transaction.run(newMyInfo);
+        }
+        
+        /**
+         * This is used for anonymous sessions only. It makes a special "setState" call which sets a "friendly"
+         * parameter name to our desired display name. Like other setState calls, this will trigger a MY_INFO_UPDATED event 
+         * @param name
+         * 
+         */        
+        public function setAnonymousDisplayName(name:String):void
+        {
+            if(_isAnonymousSession && name)
+            {
+                _anonymousDisplayName = name;
+                
+                var transaction:SetState;
+                if(!_transactions.setState) {
+                   transaction = new SetState(this);
+                   _transactions.setState = transaction;
+                } else {
+                    transaction = _transactions.setState as SetState;
+                }
+                var newMyInfo:User = _myInfo;
+                newMyInfo.displayId = name;
+                
+                transaction.run(newMyInfo);
+            }
         }
         
         /**
@@ -1731,6 +1836,11 @@ package com.aol.api.wim {
         protected function setMyInfo(me:User):void {
             //TODO: add a .equals call on the user to check and see if both user objects are the same
             _myInfo = me;
+            // If we are anonymous, keep our _anonymousDisplayName up to date
+            if(_isAnonymousSession)
+            {
+                _anonymousDisplayName = _myInfo.displayId;
+            }
             // Even though this is not from the server, we synthesize a "MY_INFO" event which represents the
             // fact that myInfo has been changed
             var event:UserEvent = new UserEvent(UserEvent.MY_INFO_UPDATED, me, true, true);
@@ -1806,6 +1916,39 @@ package com.aol.api.wim {
             return _fetchRequestTimeoutMs;
         }
         
+        // Anonymous Session Getter Methods ////////////////////////////////////
+        public function get anonymousCreatorDisplayName():String
+        {
+            return _anonymousCreatorDisplayName;
+        }
+        
+        public function get anonymousWidgetAvailableMessage():String
+        {
+            return _anonymousWidgetAvailableMsg;
+        }
+        
+        public function get anonymousWidgetUnavailableMessage():String
+        {
+            return _anonymousWidgetUnavailableMsg;
+        }
+        
+        public function get anonymousWidgetTitle():String
+        {
+            return _anonymousWidgetTitle;
+        }
+        
+        public function get anonymousDisplayName():String
+        {
+            // get from myInfo if possible
+            if(_myInfo)
+            {
+                return _myInfo.displayId;
+            }
+            else
+            {
+                return _anonymousDisplayName;
+            }
+        }
         // Setter Methods ////////////////////////////////////////////////////////
         
         /**

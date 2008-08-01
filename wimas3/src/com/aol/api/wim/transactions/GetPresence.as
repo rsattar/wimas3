@@ -64,9 +64,11 @@ package com.aol.api.wim.transactions
                 var query:String = 
                     "?f=amf3" +
                     "&aimsid=" + _session.aimsid;
+                // If we are an anonymous session, the usernames are actually anonymous dev ids, and we use &tw= instead of &t=
+                var paramName:String = !_session.isAnonymous ? "&t=" : "&tw=";
                 for(var i:int=0; i<usernames.length; i++)
                 {
-                    query += "&t=" + usernames[i];
+                    query += paramName + usernames[i];
                 }
                 if(options)
                 {
