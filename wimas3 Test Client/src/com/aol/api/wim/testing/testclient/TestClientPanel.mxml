@@ -59,6 +59,26 @@
             <mx:CheckBox id="simulateMyInfo" label="MyInfo event" enabled="{!forceFetchTimeout.selected}"/>
             <mx:CheckBox id="simulatePresence" label="Presence event" enabled="{!forceFetchTimeout.selected}"/>
         </mx:VBox>
+        <mx:HBox id="stateComboContainer" verticalAlign="middle">
+            <mx:Label styleName="inputHeading" text="State:" />
+            <mx:ComboBox id="stateCombo" editable="false" labelField="label" change="updateState();" enabled="{_sessionStarted}">
+                <mx:dataProvider>
+                    <mx:Object label="Online" value="online"/>
+                    <mx:Object label="Away" value="away"/>
+                    <mx:Object label="Invisible" value="invisible"/>
+                    <mx:Object label="Idle" value="idle"/>
+                    <mx:Object label="Not Found (experimental)" value="notFound"/>
+                </mx:dataProvider>
+            </mx:ComboBox>
+        </mx:HBox>
+        <mx:HBox id="awayMsgContainer" verticalAlign="middle">
+            <mx:Label styleName="inputHeading" text="Away:" />
+            <mx:TextInput id="awayMsgInput" text=""  enter="updateAwayMsg();" enabled="{_sessionStarted}"/>
+        </mx:HBox>
+        <mx:HBox id="statusMsgContainer" verticalAlign="middle">
+            <mx:Label styleName="inputHeading" text="Status:" />
+            <mx:TextInput id="statusMsgInput" text=""  enter="updateStatus();" enabled="{_sessionStarted}"/>
+        </mx:HBox>
         <mx:Label text="Buddy List" />
         <mx:Tree id="buddyListTree" width="100%" height="300" 
             labelField="label" showRoot="false" 
