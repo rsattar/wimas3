@@ -1,0 +1,226 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:VBox xmlns:mx="http://www.adobe.com/2006/mxml" width="400" height="300">
+    <mx:HBox>
+        <mx:Label text="Wimzi Key:"/>
+        <mx:TextInput id="appKeyInput" enabled="{!connected}" text="{appKey}"/>
+        <mx:LinkButton label="Get a Wimzi Key" click="openWimziPage()"/>
+    </mx:HBox>
+    <mx:HBox>
+        <mx:Button id="signInOutButton" label="Start" enabled="{appKeyInput.text.length > 0}" click="onSignInOutButtonClicked()"/>
+    </mx:HBox>
+    <mx:HBox>
+        <mx:Label text="Widget Title:"/>
+        <mx:Label text="{title}"/>
+    </mx:HBox>
+    <mx:HBox>
+        <mx:Label text="Widget Creator:"/>
+        <mx:Label text="{creatorDisplayName}"/>
+    </mx:HBox>
+    <mx:HBox>
+        <mx:Label text="Widget Creator State:"/>
+        <mx:Label text="{stateText}"/>
+    </mx:HBox>
+    <mx:HBox>
+        <mx:Label text="Available Greeting:"/>
+        <mx:Label text="{availableGreeting}"/>
+    </mx:HBox>
+    <mx:HBox>
+        <mx:Label text="Unavailable Greeting:"/>
+        <mx:Label text="{unavailableGreeting}"/>
+    </mx:HBox>
+    <mx:HBox>
+        <mx:Label text="Our aimId:"/>
+        <mx:Label text="{ourAimId}"/>
+    </mx:HBox>
+    <mx:HBox>
+        <mx:Label text="Our DisplayName:"/>
+        <mx:Label text="{displayName}"/>
+    </mx:HBox>
+    <mx:HBox>
+        <mx:Label text="Change our DisplayName:"/>
+        <mx:TextInput id="ourDisplayNameInput" enabled="{connected}" enter="onDisplayNameInputEnter()" maxChars="16" toolTip="Type a new name and press ENTER to set"/>
+    </mx:HBox>
+    <mx:Button label="getPresence" click="onGetPresenceClicked()" enabled="{connected}"/>
+    <mx:Label text="Chat History" fontWeight="bold"/>
+    <mx:TextArea id="historyArea" enabled="{connected}" width="100%" height="100%"/>
+    <mx:Label text="Enter a message below, and press ENTER to send"/>
+    <mx:TextInput id="sendInput" enabled="{connected}" width="100%" enter="onSendInputEnter()" toolTip="Type a message and press ENTER to send"/>
+    <mx:Script>
+        <![CDATA[
+            import com.aol.api.wim.data.types.PresenceState;
+            import flash.net.navigateToURL;
+            import com.aol.api.wim.data.IM;
+            import com.aol.api.wim.events.IMEvent;
+            import com.aol.api.wim.data.types.SessionState;
+            import com.aol.api.wim.data.User;
+            import com.aol.api.wim.events.UserEvent;
+            import com.aol.api.wim.events.SessionEvent;
+            import com.aol.api.wim.Session;
+            
+            // Get a wimzi key at wimzi.aim.com. Create a wimzi, and look at the embed code for the appKey parameters
+            [Bindable]
+            public var appKey:String = "";
+            
+            [Bindable]
+            public var title:String;
+            
+            [Bindable]
+            public var creatorDisplayName:String;
+            
+            [Bindable]
+            public var availableGreeting:String;
+            
+            [Bindable]
+            public var unavailableGreeting:String;
+            
+            [Bindable]
+            public var ourAimId:String;
+            
+            [Bindable]
+            public var displayName:String;
+            
+            [Bindable]
+            public var stateText:String;
+            
+            [Bindable]
+            public var connected:Boolean    =   false;
+            
+            protected var _session:Session;
+            protected var _wimziTarget:User;
+            protected var _me:User;
+            
+            protected function createSession():void
+            {
+                trace("Creating session with devId: \""+appKeyInput.text+"\"");
+                _session = new Session(this.stage, appKeyInput.text);
+                _session.addEventListener(SessionEvent.STATE_CHANGED, onStateChanged);
+                _session.addEventListener(UserEvent.BUDDY_PRESENCE_UPDATED, onPresenceUpdated);
+                _session.addEventListener(UserEvent.MY_INFO_UPDATED, onMyInfoUpdated);
+                // IM Sending/Receiving events
+                _session.addEventListener(IMEvent.IM_RECEIVED, onIMReceived);
+                _session.addEventListener(IMEvent.IM_SEND_RESULT, onIMSent);
+            }
+            
+            protected function destroySession():void
+            {
+                trace("Destroying session");
+                _session.removeEventListener(SessionEvent.STATE_CHANGED, onStateChanged);
+                _session.removeEventListener(UserEvent.BUDDY_PRESENCE_UPDATED, onPresenceUpdated);
+                _session.removeEventListener(UserEvent.MY_INFO_UPDATED, onMyInfoUpdated);
+                // IM Sending/Receiving events
+                _session.removeEventListener(IMEvent.IM_RECEIVED, onIMReceived);
+                _session.removeEventListener(IMEvent.IM_SEND_RESULT, onIMSent);
+                _session = null;
+            }
+            
+            protected function onSignInOutButtonClicked():void
+            {
+                if(!_session)
+                {
+                    createSession();
+                    _session.signOnAnonymous();
+                }
+                else
+                {
+                    // sign off
+                    _session.signOff();
+                }
+            }
+            
+            protected function onStateChanged(evt:SessionEvent):void
+            {
+                var state:String = evt.session.sessionState;
+                switch(state)
+                {
+                    case SessionState.ONLINE:
+                       title = evt.session.anonymousWidgetTitle;
+                       creatorDisplayName = evt.session.anonymousCreatorDisplayName;
+                       availableGreeting = evt.session.anonymousWidgetAvailableMessage;
+                       unavailableGreeting = evt.session.anonymousWidgetUnavailableMessage;
+                       signInOutButton.label = "Stop";
+                       connected = true;
+                       break;
+                    case SessionState.OFFLINE:
+                       title = "";
+                       creatorDisplayName = "";
+                       availableGreeting = "";
+                       unavailableGreeting = "";
+                       ourAimId = "";
+                       displayName = "";
+                       ourDisplayNameInput.text = "";
+                       stateText = "";
+                       signInOutButton.label = "Start";
+                       sendInput.text = "";
+                       _wimziTarget = null;
+                       _me = null;
+                       connected = false;
+                       destroySession();
+                       break;
+                        
+                }
+            }
+            
+            protected function onPresenceUpdated(evt:UserEvent):void
+            {
+                _wimziTarget = null;
+                _wimziTarget = evt.user;
+                trace("Presence updated: "+_wimziTarget.toString());
+                stateText = evt.user.state;
+                if(evt.user.state == PresenceState.AWAY)
+                {
+                    stateText += " ("+evt.user.awayMessage+")";
+                }
+            }
+            
+            protected function onMyInfoUpdated(evt:UserEvent):void
+            {
+                _me = _session.myInfo;
+                displayName = _session.anonymousDisplayName;
+                ourDisplayNameInput.text = displayName;
+                ourAimId = _me.aimId;
+            }
+            
+            protected function onGetPresenceClicked():void
+            {
+                // When we request buddy info for anonymous sessions, we actually supply the wimzi key as our "target", instead of an aimId
+                _session.requestBuddyInfo(appKey);
+            }
+            
+            protected function onDisplayNameInputEnter():void
+            {
+                _session.setAnonymousDisplayName(ourDisplayNameInput.text);
+            }
+            
+            // IM Send/Receive /////////////////////////////////////////////////
+            
+            protected function onIMReceived(evt:IMEvent):void
+            {
+                // append to history
+                addIMToHistory(evt.im);
+            }
+            
+            protected function onIMSent(evt:IMEvent):void
+            {
+                sendInput.text = "";
+                addIMToHistory(evt.im);
+            }
+            
+            protected function onSendInputEnter():void
+            {
+                _session.sendIM(_wimziTarget.aimId, sendInput.text);
+            }
+            
+            protected function addIMToHistory(im:IM):void
+            {
+                historyArea.htmlText += im.sender.label + ":&nbsp;" + im.message + "<br>";
+                // scroll to end
+                historyArea.verticalScrollPosition = historyArea.maxVerticalScrollPosition;
+            }
+            // WIMZI Page //////////////////////////////////////////////////////
+            protected function openWimziPage():void
+            {
+                navigateToURL(new URLRequest("http://wimzi.aim.com"), "_blank");
+            }
+        ]]>
+    </mx:Script>
+</mx:VBox>
