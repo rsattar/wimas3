@@ -15,6 +15,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 package com.aol.api.wim.events {
     
     import com.aol.api.wim.data.IM;
+    import com.aol.api.wim.data.SMSInfo;
+    import com.aol.api.wim.transactions.TransactionError;
     
     import flash.events.Event;
 
@@ -72,6 +74,32 @@ package com.aol.api.wim.events {
          * the IM_SEND_RESULT event. 
          */
         public var statusText:String;
+
+        /** 
+         * Contains the detailed response regarding a failure
+         * due to a 603 or 602 error.  Presently we know of "[2] on permit/deny list
+         */
+        public var subCodeError:String;
+        public var subCodeReason:String;
+        
+        /**
+         * Contains even more information on a send IM failure (602), such as if the
+         * IM was to a mobile number, and that mobile number's destination country is
+         * not supported 
+         */        
+        public var subCodeSubError:String;
+        public var subCodeSubReason:String;
+
+        /**
+         * Contains the transactionError if one existed.  This would typically 
+         * be fired BEFORE the actual IM request was sent.
+         */
+        public var transactionError:TransactionError; 
+        
+        /**
+         * Returns information regarding the success or failure of SMS messages.
+         */
+        public var smsCode:SMSInfo;   
         
         public function IMEvent(type:String, im:IM, bubbles:Boolean=false, cancelable:Boolean=false) {
             super(type, bubbles, cancelable);
@@ -79,12 +107,23 @@ package com.aol.api.wim.events {
         }
         
         override public function clone():Event {
-            return new IMEvent(type, im, bubbles, cancelable);
+            var newOne:IMEvent   = new IMEvent(type, im, bubbles, cancelable)
+            newOne.smsCode       = this.smsCode;   
+            newOne.subCodeError  = this.subCodeError;
+            newOne.subCodeReason = this.subCodeReason;
+            newOne.subCodeSubError = this.subCodeSubError;
+            newOne.subCodeSubReason = this.subCodeSubReason;
+            return newOne;            
         }
         
         override public function toString():String {
             var output:String = "[IMEvent." + this.type + 
                                 " im=" + im.toString() +
+                                " statusCode=" + statusCode +
+                                " statusText=" + statusText + 
+                                " subCodeError=" + subCodeError + 
+								" subCodeReason=" + subCodeReason +
+                                " smsCode=" + smsCode +                                                              
                                 "]";
             return output;
         }

@@ -47,6 +47,8 @@ package com.aol.api.wim.transactions
                 "&r=" + requestId +
                 "&aimsid=" + _session.aimsid +
                 "&locale=" + language +
+                // TODO:  Should probably make this a parameter in the future.
+                "&nToGet=50" +
                 "&match=" + buildMatchString(event.searchTerms);
             sendRequest(_session.apiBaseURL + method + query);
         }

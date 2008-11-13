@@ -1,6 +1,8 @@
 package com.aol.api {
     
+    import com.aol.api.wim.data.User;
     import com.aol.api.wim.data.types.PresenceState;
+    import com.aol.api.wim.data.types.UserType;
     
     import flash.net.URLRequest;
     import flash.net.URLVariables;
@@ -77,6 +79,8 @@ package com.aol.api {
                                         "'go away' - force buddy away<br>" + 
                                         "'go mobile' - force buddy mobile<br>" + 
                                         "'go online' - force buddy online<br>" +
+                                        "'set status [msg]' - update buddy's status message<br>" +
+                                        "'clear status' - clears buddy's status msg<br>" +
                                         "'atl' - trigger added to buddy list event<br>" +
                                         "'quote' - have me send you a quote<br>" + 
                                         "'endsession' - have me sign you off remotely<br>" + 
@@ -153,7 +157,7 @@ package com.aol.api {
               </data>
             </response>;
         protected var authenticatedSN:String    =   "";
-        
+        /*
         protected var sendIMResponseXML:XML =
             <response xmlns="http://developer.aim.com/xsd/im.xsd">
                 <statusCode>200</statusCode>
@@ -163,7 +167,7 @@ package com.aol.api {
                     <pageview_candidate>web_aim_en_us_v1</pageview_candidate>
                 </data>
             </response>;     
-        
+        */
         // Canned Session Objects /////////////////////////////////////////
         protected var _aimsid:String;
         
@@ -189,16 +193,35 @@ package com.aol.api {
          * buddy list manipulation functions (like AddBuddY) can be tested correctly. 
          */        
         protected var _buddyList:Object =   null;
+        /**
+         * This object represents our buddy attributes, 
+         * normally available in Feeddog / Feedbag / whatever it's called
+         */        
+        protected var _buddyAttributeMap:Array = null;
         
         protected var _numGroups:uint   =   5;
         protected var _numBuddies:uint  =   5;
+        protected var _smsBalance:uint  =   3;
+        
+        protected var _smsInfo:Object   =   {
+            smsError : 1,
+            smsReason : "OK",
+            smsCarrierID : 8,
+            smsRemainingCount : _smsBalance,
+            smsMaxAsciiLength : 160,
+            smsMaxUnicodeLength : 70,
+            smsCarrierName : "Pelephone",
+            smsCarrierUrl : "http://www.pelephone.co.il",
+            smsBalanceGroup : "972" // documentation says this is supposed to be a string
+        };
         
         /**
          * This object represents our logged in user's info. It is maintained so that 
          * state/status/profile manipulation functions (like SetState) can be tested correctly
          * 
          */
-        protected var _myInfo:Object    =   null;   
+        protected var _myInfo:Object    =   null;
+        protected var _myInfoXML:XML    =   null; 
         protected var _lastStatusMsgSet:String;
         protected var _lastAwayMsgSet:String;     
         
@@ -268,8 +291,12 @@ package com.aol.api {
                     return requestFetchEvents(vars); break;
                 case "aim/endSession":
                     return requestEndSession(vars); break;
+                case "aim/addTempBuddy":
+                    return requestAddTempBuddy(vars); break;
                 case "im/sendIM":
                     return requestSendIM(vars); break;
+                case "preference/getPermitDeny":
+                    return requestPermitDeny(vars); break;
                 case "presence/setState":
                     return requestSetState(vars); break;
                 case "presence/setStatus":
@@ -278,6 +305,10 @@ package com.aol.api {
                     return requestGetPresence(vars); break;
                 case "buddylist/addBuddy":
                     return requestAddBuddy(vars); break;
+                case "buddylist/setBuddyAttribute":
+                    return requestSetBuddyAttribute(vars); break;
+                case "buddylist/getBuddyAttribute":
+                    return requestGetBuddyAttribute(vars); break;
                 case "memberDir/search":
                     return requestSearchMemberDirectory(vars); break;
                 case "memberDir/get":
@@ -286,6 +317,8 @@ package com.aol.api {
                     return requestReportSPIM(vars); break;
                 case "im/setTyping":
                     return requestSetTyping(vars); break;
+                case "aim/getSMSInfo":
+                    return requestGetSMSInfo(vars); break;
                 default : 
                     trace("unhandled transaction in mock server: "+transactionName);
                     return new Object();
@@ -315,20 +348,48 @@ package com.aol.api {
         
         
         // Session-Related requests //////////////////////////////////
-        public function requestStartSession(vars:URLVariables):Object {
+        public function requestStartSession(vars:URLVariables):* {
             // TODO: Check to see if one is logged in (authenticatedSN==null), and return auth error otherwise
             _aimsid = aimsidPrefix+":"+this.authenticatedSN;
-            
-            var startSessionSuccess:Object = {
-                data : {
-                    aimsid : _aimsid,
-                    fetchBaseURL : "http://172.18.252.144:9359/aim/fetchEvents?aimsid="+_aimsid+"&seqNum="+this.fetchEventsSeqNum,
-                    myInfo : getMyInfo()
-                },
-                statusCode : 200,
-                statusText : "Ok"
+            var info:* = getMyInfo(false, "online", vars.f == "xml");
+            if(vars.f == "amf3")
+            {
+                var startSessionSuccess:Object = {
+                    data : {
+                        aimsid : _aimsid,
+                        fetchBaseURL : "http://172.18.252.144:9359/aim/fetchEvents?aimsid="+_aimsid+"&seqNum="+this.fetchEventsSeqNum,
+                        myInfo : info
+                    },
+                    statusCode : 200,
+                    statusText : "Ok"
+                }
+                return startSessionSuccess;
             }
-            return startSessionSuccess;
+            else if(vars.f == "xml")
+            {
+                var ns:Namespace = new Namespace("http://developer.aim.com/xsd/aim.xsd");
+                //default xml namespace = ns;
+                var startSessionSuccessXML:XML =
+                    <response xmlns="http://developer.aim.com/xsd/aim.xsd">
+                      <statusCode>200</statusCode>
+                      <statusText>Ok</statusText>
+                      <data>
+                        <aimsid>220.0700306309.1344646952:rizwantest01</aimsid>
+                        <fetchBaseURL>http://205.188.213.5/aim/fetchEvents?aimsid=220.0700306309.1344646952:rizwantest01&amp;rnd=1221677127.919307</fetchBaseURL>
+                      </data>
+                    </response>;
+                var dataNodes:XMLList = startSessionSuccessXML.ns::data;
+                var dataNode:XML = dataNodes[0];
+                dataNode.ns::aimsid = _aimsid;
+                dataNode.ns::fetchBaseURL = "http://172.18.252.144:9359/aim/fetchEvents?aimsid="+_aimsid+"&seqNum="+this.fetchEventsSeqNum;
+                dataNode.ns::myInfo = info;
+                return startSessionSuccessXML;
+                
+            }
+            else
+            {
+                return null;
+            }
         }
         
         /**
@@ -377,7 +438,7 @@ package com.aol.api {
                     case "im":
                         // Add any pending im events, or a dummy one if it's empty
                         if(pendingIMEvents.length == 0) {
-                            fetchEventsSuccess.data.events.push(createIM(true, -1, null, (evtType == "offlineim")));
+                            fetchEventsSuccess.data.events.push(createIM(true, null, null, (evtType == "offlineim")));
                         } else {
                             var numIMs:Number = pendingIMEvents.length;
                             for(var m:int=0; m<numIMs; m++) {
@@ -428,18 +489,71 @@ package com.aol.api {
                 _buddyList = {
                     groups : []
                 }
+                _buddyAttributeMap = new Array();
+                // -------------------------------------------------------------
                 var numGroups:int = _numGroups;
                 var buddiesPerGroup:int = _numBuddies;
-                for(var i:int=0; i<numGroups; i++) {
-                    var group:Object = {
+                var i:int;
+                var j:int;
+                var group:Object;
+                for(i=0; i<numGroups-1; i++) {
+                    group = {
                         buddies : [],
                         name : "Group "+(i+1)
                     };
-                    for(var j:int=0; j<buddiesPerGroup; j++) {
+                    for(j=0; j<buddiesPerGroup; j++) {
                         group.buddies.push(createBuddyInfo(j+i));
                     }
                     _buddyList.groups.push(group);
                 }
+                // Create a group of ICQ users.
+                group = {
+                    buddies : [],
+                    name : "ICQ Users"
+                };
+                for(j=0; j<buddiesPerGroup; j++) {
+                    group.buddies.push(createICQInfo(j+i));
+                }
+                _buddyList.groups.push(group);
+                // -------------------------------------------------------------
+
+
+                // -------------------------------------------------------------
+                /* Test simpler BL with specific buddies
+                var group:Object = {
+                    buddies : [],
+                    name : "Wonky Group"
+                };
+                var duplicateBuddy:Object = {
+                    aimId : "wonky",
+                    state : "online"
+                }
+                var duplicateBuddy2:Object = {
+                    aimId : "1buddy@test.com",
+                    state : "online"
+                }
+                var duplicateBuddy3:Object = {
+                    aimId : "133276",
+                    state : "online"
+                }
+                var duplicateBuddy4:Object = {
+                    aimId : "+2024135712",
+                    state : "mobile"
+                }
+                
+                group.buddies.push(duplicateBuddy);
+                group.buddies.push(duplicateBuddy2);
+                group.buddies.push(duplicateBuddy3);
+                group.buddies.push(duplicateBuddy4);
+                
+                for(var i:Number = 4; i>=0; i--)
+                {
+                    group.buddies.push( { aimId : "0"+i, userType : "icq", state : "offline" } );
+                }
+                
+                _buddyList.groups.push(group);
+                */
+                // -------------------------------------------------------------
             }
 
             if(createEvent) {
@@ -449,10 +563,14 @@ package com.aol.api {
             }
         }
         
-        private function createIM(createEvent:Boolean=false, sourceBuddyIndex:int=-1, msg:String=null, isOffline:Boolean=false):Object {
-            if(isNaN(sourceBuddyIndex) || sourceBuddyIndex == -1) {
-                sourceBuddyIndex = 0;
+        private function createIM(createEvent:Boolean=false, sourceBuddy:Object=null, msg:String=null, isOffline:Boolean=false):Object {
+            var buddyInfo:Object = sourceBuddy;
+            
+            if(sourceBuddy == null)
+            {
+                buddyInfo = createBuddyInfo(0, false);
             }
+
             if(!msg) {
                 msg = Quotes.quote;
             }
@@ -461,7 +579,7 @@ package com.aol.api {
                 message : msg,
                 timestamp : int(new Date().getTime()/1000) // Timestamp is in *seconds* since epoch, not milliseconds
             };
-            var buddyInfo:Object = createBuddyInfo(sourceBuddyIndex, false);
+            //buddyInfo = createBuddyInfo(sourceBuddyIndex, false);
             if(!isOffline)
             {
                 // This is a normal IM, so include other info
@@ -480,7 +598,7 @@ package com.aol.api {
             }
         }
         
-        private function getMyInfo(createEvent:Boolean=false):Object {
+        private function getMyInfo(createEvent:Boolean=false,onlineState:String="online", inXML:Boolean=false):* {
             if(!_myInfo)
             {
                 // Create it the first time, default to online
@@ -488,18 +606,68 @@ package com.aol.api {
                     aimId : this.authenticatedSN,
                     buddyIcon : "http://api-oscar.tred.aol.com:8000/expressions/getAsset?t="+this.authenticatedSN+"&f=native&id=00052b00002b40&type=buddyIcon",
                     displayId : this.authenticatedSN + " Name",
-                    state : "online",
+                    state : onlineState,
                     presenceIcon : "http://o.aolcdn.com/aim/img/online.gif",
                     ipCountry : "us"                        
                 };
             }
+            var ns:Namespace = new Namespace("http://developer.aim.com/xsd/aim.xsd");
+            //default xml namespace = ns;
+            if(inXML && !_myInfoXML)
+            {
+                _myInfoXML = <myInfo />;
+                _myInfoXML.ns::aimId = _myInfo.aimId;
+                _myInfoXML.ns::buddyIcon = _myInfo.buddyIcon;
+                _myInfoXML.ns::displayId = _myInfo.displayId;
+                _myInfoXML.ns::state = _myInfo.state;
+                _myInfoXML.ns::presenceIcon = _myInfo.presenceIcon;
+                _myInfoXML.ns::ipCountry = _myInfo.ipCountry;
+            }
             if(createEvent) {
-                return { eventData : _myInfo, type : "myInfo" };
+                if(!inXML)
+                {
+                    return { eventData : _myInfo, type : "myInfo" };   
+                }
+                else
+                {
+                    var eventXML:XML = <event/>
+                    eventXML.ns::type = "myInfo";
+                    eventXML.ns::eventData = _myInfoXML;
+                    return eventXML;
+                }
             } else {
-                return _myInfo;
+                return inXML ? _myInfoXML : _myInfo;
             }
         }
         
+        private function createICQInfo(optIndex:int=-1, createEvent:Boolean=false):Object {
+            
+            var num:int = optIndex >= 0 ? optIndex : ++buddyNumber;
+            var buddy:Object = {
+                aimId : num+"0000000",
+                state : "online", 
+                statusMsg : "What number am I thinking of? "+num+"!",
+                userType : "icq"
+            };                      
+            
+            if((num%2)==0)
+            {
+                var attribs:Object = new Object();
+                if((num%4)==0) attribs.smsNumber = "+17035551234";
+                attribs.friendly = attribs.smsNumber ? "Buddy Friendly Name with SMS "+num : "Buddy Friendly Name "+num;
+                // Add a friendly name
+                buddy.friendly = attribs.friendly;
+                
+                // Store attributes into map
+                _buddyAttributeMap[buddy.aimId] = attribs;
+            }
+            
+            if(createEvent) {
+                return { eventData : buddy, type : "presence" };
+            } else {
+                return buddy;
+            }
+        }
         
         /**
          * Used when we are creating a buddy based on an index 
@@ -513,10 +681,26 @@ package com.aol.api {
             var num:int = optIndex >= 0 ? optIndex : ++buddyNumber;
             var buddy:Object = {
                 aimId : "buddy"+num,
-                displayId : "Buddy Name "+num,
-                state : "online",
-                statusMsg : "What number am I thinking of? "+num+"!"
-            };
+                displayId : "Buddy "+num,
+                state : "online", 
+                statusMsg : "What number am I thinking of? "+num+"!",
+                userType : "aim"
+            };                      
+            
+            if((num%2)==0)
+            {
+                var attribs:Object = new Object();
+                if((num%4)==0) attribs.smsNumber = "+17035551234";
+                attribs.friendly = attribs.smsNumber ? "Buddy Friendly Name with SMS "+num : "Buddy Friendly Name "+num;
+                // Add a friendly name
+                buddy.friendly = attribs.friendly;
+                if(attribs.smsNumber)
+                {
+                    buddy.smsNumber = attribs.smsNumber;
+                }
+                // Store attributes into map
+                _buddyAttributeMap[buddy.aimId] = attribs;
+            }
             
             if(createEvent) {
                 return { eventData : buddy, type : "presence" };
@@ -575,18 +759,36 @@ package com.aol.api {
                     requestId: vars.r
                 };
             }
+            var replyObj:Object = {
+                statusCode: 200,
+                statusText: "Ok",
+                requestId: vars.r
+            };
             // Parse "special" messages
             var msgWords:Array = (vars.message as String).split(" ");
+            // Some special messages require our buddy to be modified, so get a ref to him here
+            var buddy:Object = getBuddyFromBuddyList(vars.t);
+            if(!buddy) buddy = { aimId : vars.t, state : "online"};
+            var fakeUser:User = new User();
+            fakeUser.aimId = vars.t;
+            // Assume that sending to any mobile number should result in an smsCode block in the response
+            if(fakeUser.userType == UserType.SMS)
+            {
+                buddy.state = "mobile"
+                replyObj.smsCode = _smsInfo;
+            }
+            // In some cases we create a presenceEvent, so we declare the var here
+            var presenceEvt:Object = null;
             if(msgWords[0] == "help")
             {
-                vars.t = vars.t.replace("buddy", "");
-                pendingIMEvents.push(createIM(true, parseInt(vars.t), helpText));
+                //vars.t = vars.t.replace("buddy", "");
+                pendingIMEvents.push(createIM(true, buddy, helpText));
                 eventsToReturn.push("im");
             }
             else if(msgWords[0] == "quote")
             {
-                vars.t = vars.t.replace("buddy", "");
-                pendingIMEvents.push(createIM(true, parseInt(vars.t)));
+                //vars.t = vars.t.replace("buddy", "");
+                pendingIMEvents.push(createIM(true, buddy));
                 eventsToReturn.push("im");
             }
             else if(msgWords[0] == "sendim")
@@ -602,18 +804,16 @@ package com.aol.api {
             {
                 // we may potentially have a "go away"
                 var possState:String = msgWords[1].toLowerCase();
-                if(possState == "online" || possState == "away" || possState == "offline" || possState == "mobile")
+                if(possState == "online" || possState == "away" || possState == "offline" || possState == "mobile" || possState == "invisible")
                 {
-                    var buddy:Object = getBuddyFromBuddyList(vars.t);
                     if(buddy && buddy.state != possState)
                     {
                         
                         // Update our model
                         buddy.state = possState; // buddy is by reference, so it updates our model
-                        //setBuddyInfoInBuddyList(buddy);
                         
                         // Add a pending presence event
-                        var presenceEvt:Object = 
+                        presenceEvt = 
                         {
                             eventData : buddy,
                             type : "presence"
@@ -623,28 +823,152 @@ package com.aol.api {
                     }
                 }
             }
+            else if(msgWords[0] == "set" && msgWords[1] == "status" && msgWords.length > 2)
+            {
+                // Pop out "set" and "status" so we're left just with the status msg words to join
+                msgWords.shift();
+                msgWords.shift();
+                var statusMsg:String = msgWords.join(" ");
+                if(buddy && statusMsg != buddy.statusMsg)
+                {
+                    
+                    // Update our model
+                    buddy.statusMsg = statusMsg; // buddy is by reference, so it updates our model
+                    
+                    // Add a pending presence event
+                    presenceEvt = 
+                    {
+                        eventData : buddy,
+                        type : "presence"
+                    }
+                    pendingPresenceEvents.push(presenceEvt);
+                    eventsToReturn.push("presence");
+                }
+            }
+            else if(msgWords[0] == "clear" && msgWords[1] == "status")
+            {
+                if(buddy && buddy.statusMsg != null)
+                {
+                    
+                    // Update our model
+                    buddy.statusMsg = null; // buddy is by reference, so it updates our model
+                    
+                    // Add a pending presence event
+                    presenceEvt = 
+                    {
+                        eventData : buddy,
+                        type : "presence"
+                    }
+                    pendingPresenceEvents.push(presenceEvt);
+                    eventsToReturn.push("presence");
+                }
+            }
+            else if(msgWords[0] == "gimme" && msgWords[1] == "smscode" && msgWords.length > 2)
+            {
+                // Pop out "gimme" and "smscode" so we're left just with the smscode
+                msgWords.shift();
+                msgWords.shift();
+                var smsErrorCode:Number = new Number(msgWords[0]);
+                if(!isNaN(smsErrorCode))
+                {
+                    replyObj.statusCode = 602; // Figure out if all smsErrors generate the same statusCode
+                    replyObj.statusText = "You gots an IM sending error";
+                    if(!replyObj.smsCode) 
+                    {
+                        replyObj.smsCode = _smsInfo;
+                    }
+                    replyObj.smsCode.smsError = smsErrorCode;
+                    replyObj.smsCode.smsReason = "You gots an SMS error dawg";
+                }
+            }
             else if(msgWords[0] == "endsession")
             {
                 requestEndSession(null);
             }
             else if(echoIMs) {
-                vars.t = vars.t.replace("buddy", "");
-                pendingIMEvents.push(createIM(true, parseInt(vars.t), "Echo: "+vars.message));
+                //vars.t = vars.t.replace("buddy", "");
+                pendingIMEvents.push(createIM(true, buddy, "Echo: "+vars.message));
                 eventsToReturn.push("im");
             }
+            
+            if(fakeUser.userType == UserType.SMS)
+            {
+                if(replyObj.statusCode == 200)
+                {
+                    if(_smsBalance > 0) _smsBalance--;
+                    else _smsBalance = 10; // auto recharge!
+                    
+                    replyObj.smsCode.smsRemainingCount = _smsBalance;
+                }
+            }
+            
+            /*
+            if(replyObj.smsCode)
+            {
+                // put in our balance and balance group here
+                if(!replyObj.smsCode.smsRemainingCount) 
+                replyObj.smsCode.smsRemainingCount = _smsBalance;
+                replyObj.smsCode.smsBalanceGroup = "defaultMockBalanceGroup";
+            }
+            */
+            
             if(vars.f == "xml")
             {
-                var str:String = sendIMResponseXML.toXMLString();
-                return new XML(str.replace(/%1/g,vars.r));
+                //var str:String = sendIMResponseXML.toXMLString();
+                
+                var ns:Namespace = new Namespace("http://developer.aim.com/xsd/im.xsd");
+                //default xml namespace = ns;
+                var sendIMResponseXML:XML =
+                    <response xmlns="http://developer.aim.com/xsd/im.xsd" />;
+                    /*
+                        <statusCode>200</statusCode>
+                        <statusText>Ok</statusText>
+                        <requestId>%1</requestId>
+                        <data>
+                            <pageview_candidate>web_aim_en_us_v1</pageview_candidate>
+                        </data>
+                    </response>;
+                    */
+                sendIMResponseXML.ns::statusCode = replyObj.statusCode;
+                sendIMResponseXML.ns::statusText = replyObj.statusText;
+                sendIMResponseXML.ns::requestId = replyObj.requestId;
+                if(replyObj.smsCode)
+                {
+                    var smsCode:XML = <smsCode />;
+                    if(replyObj.smsCode.smsError) smsCode.ns::smsError = replyObj.smsCode.smsError;
+                    if(replyObj.smsCode.smsReason) smsCode.ns::smsReason = replyObj.smsCode.smsReason;
+                    if(replyObj.smsCode.smsCarrierID) smsCode.ns::smsCarrierID = replyObj.smsCode.smsCarrierID;
+                    if(replyObj.smsCode.smsRemainingCount) smsCode.ns::smsRemainingCount = replyObj.smsCode.smsRemainingCount;
+                    if(replyObj.smsCode.smsMaxAsciiLength) smsCode.ns::smsMaxAsciiLength = replyObj.smsCode.smsMaxAsciiLength;
+                    if(replyObj.smsCode.smsMaxUnicodeLength) smsCode.ns::smsMaxUnicodeLength = replyObj.smsCode.smsMaxUnicodeLength;
+                    if(replyObj.smsCode.smsCarrierName) smsCode.ns::smsCarrierName = replyObj.smsCode.smsCarrierName;
+                    if(replyObj.smsCode.smsCarrierUrl) smsCode.ns::smsCarrierUrl = replyObj.smsCode.smsCarrierUrl;
+                    if(replyObj.smsCode.smsBalanceGroup) smsCode.ns::smsBalanceGroup = replyObj.smsCode.smsBalanceGroup;
+                    
+                    sendIMResponseXML.ns::smsCode = smsCode;
+                }
+                sendIMResponseXML.ns::data.pageview_candidate = "web_aim_en_us_v1"; // is this XML response only?
+                
+                
+
+                return sendIMResponseXML;
             }
             else
             {
-                return {
-                    statusCode: 200,
-                    statusText: "Ok",
-                    requestId: vars.r
-                };
+                return replyObj;
             }
+        }
+        
+        protected function requestPermitDeny(vars:URLVariables):Object {
+            var result:Object = getOKResponse(vars);
+            result.data = {
+                   "pdMode":"permitOnList",
+                   "allows":"buddy1,buddy3,buddy5,buddy7",
+                   "blocks":"buddy0,buddy2,buddy4,buddy6",
+                   "ignores":"buddy12,buddy14,buddy16"
+            }
+            
+            return result;
         }
         
         protected function requestSetState(vars:URLVariables):Object
@@ -743,6 +1067,9 @@ package com.aol.api {
             // TODO: check for invalid setState request variables in mock server
             if(!_myInfo) getMyInfo(false);
             var status:String = vars.statusMsg;
+            // Host auto converts < and > into xml escaped values, so do it here
+            status = status.replace(/</ig, "&lt;");
+            status = status.replace(/>/ig, "&gt;");
             //if(state != _myInfo.state)
             if(status && status != "")
             {
@@ -764,6 +1091,7 @@ package com.aol.api {
                     delete _myInfo.statusMsg;
                 }
             }
+            eventsToReturn.push("myinfo");
             
             // Add the new myinfo objec to our response
             //result.data = 
@@ -852,6 +1180,89 @@ package com.aol.api {
             return result;
         }
         
+        protected function requestAddTempBuddy(vars:URLVariables):Object
+        {
+            var result:Object = getOKResponse(vars);
+            // we don't do anything else here yet
+            return result;
+        }
+        
+        protected function requestSetBuddyAttribute(vars:URLVariables):Object
+        {
+            var result:Object = getOKResponse(vars);
+            var buddy:Object = getBuddyFromBuddyList(vars.buddy);
+            var attribs:Object = _buddyAttributeMap[vars.buddy];
+            if(!attribs && buddy)
+            {
+                attribs = new Object()
+                _buddyAttributeMap[vars.buddy] = attribs;
+            }
+            if(vars.friendly != null)
+            {
+                if(vars.friendly.length > 0)
+                {
+                    attribs.friendly = vars.friendly;
+                    if(buddy) buddy.friendly = attribs.friendly;
+                }
+                else
+                {
+                    delete attribs.friendly;
+                    if(buddy) delete buddy.friendly;
+                }
+            }
+            if(vars.smsNumber != null)
+            {
+                if(vars.smsNumber.length > 0)
+                {
+                    attribs.smsNumber = vars.smsNumber;
+                    if(buddy) buddy.smsNumber = attribs.smsNumber;
+                }
+                else
+                {
+                    delete attribs.smsNumber;
+                    if(buddy) delete buddy.smsNumber;
+                }
+            }
+            if(vars.workNumber != null)
+            {
+                if(vars.workNumber.length > 0)
+                {
+                    attribs.workNumber = vars.workNumber;
+                    if(buddy) buddy.workNumber = attribs.workNumber;
+                }
+                else
+                {
+                    delete attribs.workNumber;
+                    if(buddy) delete buddy.workNumber;
+                }
+            }
+            if(vars.otherNumber != null)
+            {
+                if(vars.otherNumber.length > 0)
+                {
+                    attribs.otherNumber = vars.otherNumber;
+                    if(buddy) buddy.otherNumber = attribs.otherNumber;
+                }
+                else
+                {
+                    delete attribs.otherNumber;
+                    if(buddy) delete buddy.otherNumber;
+                }
+            }
+            // Always push a new buddy list event
+            eventsToReturn.push("buddylist");
+            return result;
+        }
+        
+        protected function requestGetBuddyAttribute(vars:URLVariables):Object
+        {
+            var result:Object = getOKResponse(vars);
+            var buddy:Object = getBuddyFromBuddyList(vars.buddy);
+            var attribs:Object = _buddyAttributeMap[vars.buddy];
+            result.data = attribs ? attribs : {};
+            return result;
+        }
+        
         protected function requestReportSPIM(vars:URLVariables):Object
         {
             var result:Object = getOKResponse(vars);
@@ -861,6 +1272,24 @@ package com.aol.api {
         protected function requestSetTyping(vars:URLVariables):Object
         {
             return getOKResponse(vars);
+        }
+        
+        protected function requestGetSMSInfo(vars:URLVariables):Object
+        {
+            var res:Object = getOKResponse(vars);
+            var phoneNumber:String = vars.phone;
+            if(phoneNumber.indexOf("+1") == 0)
+            {
+                res.statusText = "Server error."
+                res.statusCode = 500;
+                res.statusDetailCode = 1140;
+                res.data = { };
+            }
+            else
+            {
+                res.data = { smsInfo : _smsInfo };
+            }
+            return res;
         }
         
         protected function requestSearchMemberDirectory(vars:URLVariables):Object
@@ -884,10 +1313,143 @@ package com.aol.api {
         protected function requestGetMemberDirectory(vars:URLVariables):Object
         {
             var result:Object = getOKResponse(vars);
-            var makeRandomResult:Function = function():Object { return { profile: { aimId:"00000000", firstName:"Roger", lastName:"Tired", gender:"male", homeAddress:[ { street:"1024 Burywood Lane", city:"Reston", state:"VA", zip:"20194", country:"US" } ], friendlyName:"rogertired", website1:"www.partlyhuman.com", relationshipStatus:"single", lang1:"en", jobs:[ { title:"Code Monkey", company:"partlyhuman inc", website:"www.partlyhuman.com", department:"code monkery", industry:"technology", subIndustry:"teh internets", startDate:null, endDate:null, street:"", city:"", state:"", zip:"", country:"" } ], aboutMe:"Here's my profile", birthDate:(new Date(1981,5,12).time) / 1000, visitorCount:"", searchHistory:"", currentAddress:{ street:"555 Greene Ave.", city:"Brooklyn", state:"NY", zip:"11238", country:"US" }, interestedIn:["college","women","space","80s","music"], favoriteMusic:"dance", favoriteMovies:"Brazil", favoriteTv:"no", favoriteBooks:"Ender's Game", activities:"sleeping", whatILove:"sleeping", whatIHate:"sleeping", quote1:"hello", quote2:"goodbye", quote3:"um", quote4:"", highSchool:"tjhsst", highSchoolGradYear:"1999", university:"cmu", universityGradYear:"2003", customHtml:"", themeCode:"", commentId:"", codeSnippet:"", codeSnippetRaw:"", privateKey:"", originAddress:[ { street:"167 5th ave. #1", city:"Brooklyn", state:"NY", zip:"11217", country:"US" } ], lang2:"ja", lang3:"es", validatedEmail:"rogerimp@gmail.com", pendingEmail:"", emails:[ { addr:"rogerimp@gmail.com", hide:false, primary:true } ], phones:[ { phone:"703-555-5555", type:"Home" }, { phone: "703-555-5554", type: "Office" } ], education:"uneducated", studies:[ { instituteType:"", instituteName:"", degree:"", major:"", studiesYear:"" } ], interests:[ { text:"", code:"" } ], groups:[ { text:"", code:"" } ], pasts:[ { text:"", code:"" } ], anniversary:"", children:"none", religion:"agnostic", sexualOrientation:"straight", smoking:"false", height:"short", hairColor:"red", tz:"GMT-0500", online:"", partnerIds:"", photo:true, localLangCd:"", lastupdated:null, userType:"", allowEmail:true, hideLevel:"", betaFlag:"", statusLine:"", hideFlag:"", autoSms:"", validatedCellular:"" }, settings: null } } 
+            var targets:Array = vars.t is Array ? vars.t : new Array([vars.t]);//vars.toString().split('t=');
             result.data = { infoArray : [] };
-            result.data.infoArray.push(makeRandomResult());
+            for (var i:int=0; i<targets.length; i++)
+            {
+                result.data.infoArray.push(makeMDirProfile(targets[i]));
+            }
             return result;
+        }
+        
+        /**
+         * Convenience function to make a full mdir profile, based on just an "id" 
+         * @param id
+         * @return 
+         * 
+         */        
+        private function makeMDirProfile(uin:String):Object
+        {
+            var id:String = uin;
+            if(id.length == 2)
+            {
+                id = "0" + (5-Number(id));
+            }
+            return { 
+                profile: { 
+                    aimId:uin, 
+                    firstName:"Roger", 
+                    lastName:"Tired "+id, 
+                    gender:"male", 
+                    homeAddress:
+                    [ 
+                        { street:"1024 Burywood Lane", city:"Reston", state:"VA", zip:"20194", country:"US" } 
+                    ], 
+                    friendlyName:"rogertired "+id, 
+                    website1:"www.partlyhuman.com", 
+                    relationshipStatus:"single", 
+                    lang1:"en", 
+                    jobs:
+                    [ 
+                        { title:"Code Monkey", company:"partlyhuman inc", website:"www.partlyhuman.com", department:"code monkery", industry:"technology", subIndustry:"teh internets", startDate:null, endDate:null, street:"", city:"", state:"", zip:"", country:"" } 
+                    ], 
+                    aboutMe:"Here's my profile", 
+                    birthDate:(new Date(1981,5,12).time) / 1000, 
+                    visitorCount:"", 
+                    searchHistory:"", 
+                    currentAddress:{ 
+                        street:"555 Greene Ave.", 
+                        city:"Brooklyn", 
+                        state:"NY", 
+                        zip:"11238", 
+                        country:"US" 
+                    }, 
+                    interestedIn:["college","women","space","80s","music"], 
+                    favoriteMusic:"dance", 
+                    favoriteMovies:"Brazil", 
+                    favoriteTv:"no", 
+                    favoriteBooks:"Ender's Game", 
+                    activities:"sleeping", 
+                    whatILove:"sleeping", 
+                    whatIHate:"sleeping", 
+                    quote1:"hello", 
+                    quote2:"goodbye", 
+                    quote3:"um", 
+                    quote4:"", 
+                    highSchool:"tjhsst", 
+                    highSchoolGradYear:"1999", 
+                    university:"cmu", 
+                    universityGradYear:"2003", 
+                    customHtml:"", 
+                    themeCode:"", 
+                    commentId:"", 
+                    codeSnippet:"", 
+                    codeSnippetRaw:"", 
+                    privateKey:"", 
+                    originAddress:
+                    [ 
+                        { 
+                            street:"167 5th ave. #1", 
+                            city:"Brooklyn", 
+                            state:"NY", 
+                            zip:"11217", 
+                            country:"US" 
+                        } 
+                    ], 
+                    lang2:"ja", 
+                    lang3:"es", 
+                    validatedEmail:"rogerimp@gmail.com", 
+                    pendingEmail:"", 
+                    emails:
+                    [ 
+                        { addr:"rogerimp@gmail.com", hide:false, primary:true } 
+                    ], 
+                    phones:
+                    [ 
+                        { phone:"703-555-5555", type:"Home" }, 
+                        { phone: "703-555-5554", type: "Office" } 
+                    ], 
+                    education:"uneducated", 
+                    studies:
+                    [ 
+                        { instituteType:"", instituteName:"", degree:"", major:"", studiesYear:"" } 
+                    ], 
+                    interests:
+                    [ 
+                        { text:"", code:"" } 
+                    ], 
+                    groups:
+                    [ 
+                        { text:"", code:"" } 
+                    ], 
+                    pasts:
+                    [ 
+                        { text:"", code:"" } 
+                    ], 
+                    anniversary:"", 
+                    children:"none", 
+                    religion:"agnostic", 
+                    sexualOrientation:"straight", 
+                    smoking:"false", 
+                    height:"short", 
+                    hairColor:"red", 
+                    tz:"GMT-0500", 
+                    online:"", 
+                    partnerIds:"", 
+                    photo:true, 
+                    localLangCd:"", 
+                    lastupdated:null, 
+                    userType:"", 
+                    allowEmail:true, 
+                    hideLevel:"", 
+                    betaFlag:"", 
+                    statusLine:"", 
+                    hideFlag:"", 
+                    autoSms:"false", 
+                    validatedCellular:"+1 70 32659999 SMS" 
+                }, 
+                settings: null 
+            }; 
         }        
         
         protected function getBuddyFromBuddyList(buddyAimId:String):Object
@@ -943,10 +1505,17 @@ package com.aol.api {
             }
             if(createIfNecessary)
             {
+                var fakeUser:User = new User();
+                fakeUser.aimId = buddyAimId;
+                fakeUser.state = "online";
+                if(fakeUser.userType == UserType.SMS && buddyAimId.charAt(0) == "+")
+                {
+                    fakeUser.state = "mobile";
+                }
                 var newBuddy:Object = 
                 {
-                    aimId : buddyAimId,
-                    state : "online"
+                    aimId : fakeUser.aimId,
+                    state : fakeUser.state
                 }
                 group.buddies.push(newBuddy);
                 return newBuddy;

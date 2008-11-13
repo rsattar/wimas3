@@ -29,7 +29,7 @@ package com.aol.api.wim.transactions
                 "&aimsid=" + _session.aimsid +
                 "&r=" + requestId +
                 "&statusMsg=" + encodeURIComponent((evt.user.statusMessage != null ? evt.user.statusMessage : ""));
-            _logger.debug("SetStatus: " + _session.apiBaseURL + method + query);
+            _logger.debug("SetStatus: " + (_session.apiBaseURL + method + query));
             sendRequest(_session.apiBaseURL + method + query);
         }
         
@@ -43,16 +43,23 @@ package com.aol.api.wim.transactions
             var oldEvent:UserEvent = getRequest(requestId) as UserEvent;
             _logger.debug("presence/setStatus response:\n {0}",_response);
             if(statusCode == 200) {
+                // NOTE: if a state change was also fired preceding this request, the "oldEvent.user" might contain
+                // state state. 
                 var user:User = oldEvent.user;
+                
                 // Dispatch a status update result
-                _logger.debug("Dispatching STATUS_MSG_UPDATE_RESULT based on SetStatus server response: {0}", user);
+                //_logger.debug("Dispatching STATUS_MSG_UPDATE_RESULT based on SetStatus server response: {0}", user);
                 var newStatusMsgEvent:UserEvent = new UserEvent(UserEvent.STATUS_MSG_UPDATE_RESULT, user, true, true);
                 dispatchEvent(newStatusMsgEvent);
                 
-                // Due to bugs in host, we are not guaranteed that a "myInfo" even will be fired, so we fire an extra one
+                // TODO: Dispatch 'myInfo' after setStatus still required? 
+                // Now it looks like the host *does* send out "myInfo" events whenever we change status.
+                // In the past were not guaranteed that a "myInfo" even would be fired, so we fired an extra one
+                /*
                 _logger.debug("Dispatching MY_INFO_UPDATED based on SetStatus server response: {0}", user);
                 var newMyInfoEvent:UserEvent = new UserEvent(UserEvent.MY_INFO_UPDATED, user, true, true);
                 dispatchEvent(newMyInfoEvent);
+                */
             }                 
         }
         

@@ -16,7 +16,9 @@ package com.aol.api.wim.transactions
 {
     import com.aol.api.wim.AMFResponseParser;
     import com.aol.api.wim.Session;
+    import com.aol.api.wim.data.BuddyList;
     import com.aol.api.wim.data.User;
+    import com.aol.api.wim.events.BuddyListEvent;
     import com.aol.api.wim.events.UserEvent;
     import com.aol.api.wim.interfaces.IResponseParser;
     
@@ -51,6 +53,7 @@ package com.aol.api.wim.transactions
          * Boolean    memberSince   [Default 0] - Return member since information
          * Boolean    statusMsg     [Default 0] - Return status message information
          * Boolean    friendly      [Default 0] - Return friendly name
+         * Boolean    bl            [Default 0] - Return the whole buddy list
          * 
          * @param usernames An array of usernames to request presence for
          * @param options   [optional] An object with parameters 
@@ -58,17 +61,20 @@ package com.aol.api.wim.transactions
          */
         public function run(usernames:Array, options:Object=null):void
         {
-            if(usernames.length > 0)
+            if((usernames && usernames.length > 0) || (options && options.bl != false))
             {
                 var method:String = "presence/get";
                 var query:String = 
                     "?f=amf3" +
                     "&aimsid=" + _session.aimsid;
-                // If we are an anonymous session, the usernames are actually anonymous dev ids, and we use &tw= instead of &t=
-                var paramName:String = !_session.isAnonymous ? "&t=" : "&tw=";
-                for(var i:int=0; i<usernames.length; i++)
+                if(usernames && usernames.length > 0)
                 {
-                    query += paramName + usernames[i];
+                    // If we are an anonymous session, the usernames are actually anonymous dev ids, and we use &tw= instead of &t=
+                    var paramName:String = !_session.isAnonymous ? "&t=" : "&tw=";
+                    for(var i:int=0; i<usernames.length; i++)
+                    {
+                        query += paramName + usernames[i];
+                    }
                 }
                 if(options)
                 {
@@ -80,6 +86,7 @@ package com.aol.api.wim.transactions
                     if(options.memberSince && options.memberSince != false) query += "&memberSince=1";
                     if(options.statusMsg && options.statusMsg != false) query += "&statusMsg=1";
                     if(options.friendly && options.friendly != false) query += "&friendly=1";
+                    if(options.bl && options.bl != false) query += "&bl=1";
                 }
                 _logger.debug("GetPresenceQuery: " + _session.apiBaseURL + method + query);
                 sendRequest(_session.apiBaseURL + method + query);            
@@ -91,19 +98,37 @@ package com.aol.api.wim.transactions
             var statusCode:uint = _response.statusCode;
             //get the old event so we can create the new event
             if(statusCode == 200) {
-                if(_response.data && _response.data.users)
+                if(_response.data)
                 {
-                    var users:Array = _response.data.users as Array;
-                    if(users)
+                    // TODO: is there any way to re-use the parser instance from session?
+                    var parser:IResponseParser = new AMFResponseParser();
+                    // Dispatch presence for users
+                    if(_response.data.users)
                     {
-                        var parser:IResponseParser = new AMFResponseParser();
-                        for(var i:int=0; i<users.length; i++)
+                        var users:Array = _response.data.users as Array;
+                        if(users)
                         {
-                            var user:User = parser.parseUser(users[i]);
-                            dispatchEvent(new UserEvent(UserEvent.BUDDY_PRESENCE_UPDATED, user, true, true));
+                            for(var i:int=0; i<users.length; i++)
+                            {
+                                var user:User = parser.parseUser(users[i]);
+                                dispatchEvent(new UserEvent(UserEvent.BUDDY_PRESENCE_UPDATED, user, true, true));
+                            }
                         }
                     }
-                }
+                    
+                    // Check if a whole buddy list is included
+                    if(_response.data.groups)
+                    {
+                        var bl:BuddyList = parser.parseBuddyList(_response.data);
+                        _logger.debug("Dispatching LIST_RECEIVED (during GetPresence)");                        
+                        bl.owner = _session.myInfo;
+                        dispatchEvent(new BuddyListEvent(BuddyListEvent.LIST_RECEIVED,null,null,bl,true,true));
+                    }
+                } 
+            }
+            else
+            {
+                _logger.debug("Error (statusCode = {0}) in GetPresence: {1}", statusCode, _response);
             }                 
         }
     }

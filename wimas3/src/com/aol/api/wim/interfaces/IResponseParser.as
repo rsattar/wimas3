@@ -18,6 +18,7 @@ package com.aol.api.wim.interfaces {
     import com.aol.api.wim.data.DataIM;
     import com.aol.api.wim.data.Group;
     import com.aol.api.wim.data.IM;
+    import com.aol.api.wim.data.SMSInfo;
     import com.aol.api.wim.data.User;
     
     public interface IResponseParser {
@@ -52,6 +53,14 @@ package com.aol.api.wim.interfaces {
          * 
          */        
         function parseIM(data:*, recipient:User=null, isOffline:Boolean=false):IM;
+        
+        /**
+         * Creates an <code>SMSInfo</code> object out of the data 
+         * @param data
+         * @return 
+         * 
+         */        
+        function parseSMSInfo(data:*):SMSInfo;
         
         /**
          * Creates a <code>DataIM</code> object out of the data 

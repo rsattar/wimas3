@@ -68,12 +68,19 @@ package com.aol.api.wim.data.types {
 	     */ 
 	    public static const BUSY:String = "busy";
 	    
+	    public static const BLOCKED:String = "blocked";
 	    /**
 	     * A request has been sent to add the user but the user hasn't responded yet.
 	     * Historically, this state was only part of the ICQ process for adding buddies.
-	     * This state does not historically exist in AIM clients.
+	     * This state does not historically exist in AIM clients.  Historically.  Like, 
+	     * in history, yo.
 	     */
 	    public static const UNKNOWN:String = "unknown";
+	    
+	    /**
+	     * User has something better to do than talk to you.
+	     */
+	    public static const OCCUPIED:String = "occupied";      
 
 	}
 }

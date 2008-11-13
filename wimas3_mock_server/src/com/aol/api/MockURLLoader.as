@@ -3,6 +3,7 @@ package com.aol.api {
     import com.aol.api.wim.transactions.ResultLoader;
     
     import flash.events.Event;
+    import flash.events.IOErrorEvent;
     import flash.events.TimerEvent;
     import flash.net.URLRequest;
     import flash.net.URLVariables;
@@ -24,7 +25,7 @@ package com.aol.api {
         public function MockURLLoader(request:URLRequest=null, maxTimeoutMs:int=0, context:Object=null) {
             super(request, maxTimeoutMs, context);
             _networkTimer = new Timer(500, 1);
-            _networkTimer.addEventListener(TimerEvent.TIMER_COMPLETE, onTimerComplete);
+            _networkTimer.addEventListener(TimerEvent.TIMER_COMPLETE, onNetworkTimerComplete);
         }
         
         /**
@@ -33,6 +34,7 @@ package com.aol.api {
          * 
          */        
         public override function load(request:URLRequest):void {
+            currentRequest = request;
             // Make the request to the singleton server instance
             var response:* = MockServer.getInstance().handleRequest(request);
             // If the response is null, we should pretend to have lost connection with the server
@@ -71,6 +73,17 @@ package com.aol.api {
         }
         
         // Timer Event Handlers
+         
+        /**
+         * Override to disable calling 'close' on a stream that was never opened
+         * @param evt
+         * 
+         */        
+        protected override function onTimeoutExceeded(evt:TimerEvent):void {
+            trace("Timeout exceeded ("+(maxTimeoutMs/1000)+"s) requesting URL: "+(currentRequest ? currentRequest.url : "(unavailable)"));
+            
+            dispatchEvent(new IOErrorEvent(IOErrorEvent.IO_ERROR, false, false, "Timeout exceeded"));
+        }
         
         /**
          * Our timer to simulate network latency is complete. Normally we will
@@ -78,7 +91,7 @@ package com.aol.api {
          * @param evt
          * 
          */        
-        protected function onTimerComplete(evt:TimerEvent):void {
+        protected function onNetworkTimerComplete(evt:TimerEvent):void {
             dispatchEvent(new Event(Event.COMPLETE));
         }
         

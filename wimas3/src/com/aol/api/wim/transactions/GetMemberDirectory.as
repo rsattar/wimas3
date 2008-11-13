@@ -17,19 +17,28 @@ package com.aol.api.wim.transactions {
     import com.aol.api.wim.events.MemberDirectoryEvent;
     
     import flash.events.Event;
+    import flash.events.IOErrorEvent;
 
     public class GetMemberDirectory extends Transaction {
         protected var language:String;
         
+        protected var _tempRequestId:uint;
+        
         public function GetMemberDirectory(session:Session, language:String) {
             super(session);
             this.language = language;
+            _tempRequestId = 0;
             addEventListener(MemberDirectoryEvent.DIRECTORY_GETTING, doGet, false, 0, true);
         }
         
-        public function run(imId:String, level:String, context:Object):void {
+        public function run(ids:Array, level:String, context:Object):void {
             var event:MemberDirectoryEvent = new MemberDirectoryEvent(MemberDirectoryEvent.DIRECTORY_GETTING, true, true);
-            event.searchTerms = {"imId": imId};
+            event.searchTerms = {};
+            event.searchTerms.ids = new Array();
+            for (var i:int=0; i<ids.length; i++)
+            {
+                event.searchTerms.ids[i] = ids[i];
+            }
             event.level = level;
             event.context = context;
             dispatchEvent(event);
@@ -38,15 +47,22 @@ package com.aol.api.wim.transactions {
         protected function doGet(event:MemberDirectoryEvent):void {
             var requestId:uint = storeRequest(event);
             event.requestId = requestId;
+            _tempRequestId = requestId;
             var method:String = "memberDir/get";
             var query:String =
                 "?f=amf3" +
                 "&r=" + requestId +
                 "&aimsid=" + _session.aimsid +
-                "&locale=" + language +
-                "&t=" + encodeURIComponent(event.searchTerms["imId"]) +
-                "&infoLevel=" + event.level;
-            sendRequest(_session.apiBaseURL + method + query, "GET", event.context);
+                "&locale=" + language;
+                
+            for (var i:int=0; i<event.searchTerms.ids.length; i++)
+            {
+                query+="&t=" + encodeURIComponent(event.searchTerms.ids[i]);                                  
+            }
+            
+            query += "&infoLevel=" + event.level;                
+                
+            sendRequest(_session.apiBaseURL + method + query, "GET", event.context, 15000);
         }
         
         override protected function requestComplete(event:Event):void {
@@ -60,6 +76,7 @@ package com.aol.api.wim.transactions {
             var oldEvent:MemberDirectoryEvent = MemberDirectoryEvent(getRequest(requestId));
             var newEvent:MemberDirectoryEvent = new MemberDirectoryEvent(MemberDirectoryEvent.DIRECTORY_GET_RESULT, true, true);            
             newEvent.context = oldEvent.context;
+            newEvent.searchTerms = oldEvent.searchTerms;
             newEvent.searchResults = [];
             newEvent.statusCode = statusCode;
             
@@ -69,10 +86,38 @@ package com.aol.api.wim.transactions {
                     newEvent.searchResults = _response.data.infoArray;
                 }
             } else {
-                _logger.error("GetMemberDirectory request resulted in non-OK status");
+                _logger.error("GetMemberDirectory request resulted in non-OK status: {0} - {1}", statusCode, statusText);
             }
-            
+            _tempRequestId = 0;
             dispatchEvent(newEvent);            
+        }
+        
+        override protected function handleIOError(evt:IOErrorEvent):void
+        {
+            var oldEvent:MemberDirectoryEvent = MemberDirectoryEvent(getRequest(_tempRequestId));
+            _logger.error("GetMemberDirectory request resulted in IO_ERROR: {0} - {1}", evt.type, evt.text);
+            var newEvent:MemberDirectoryEvent = new MemberDirectoryEvent(MemberDirectoryEvent.DIRECTORY_GET_IO_ERROR);
+            if (oldEvent)
+            {
+                if (oldEvent.context)
+                {
+                    newEvent.context = oldEvent.context;        
+                }
+                
+                if (oldEvent.level)
+                {
+                    newEvent.level = oldEvent.level;
+                }
+            
+                if (oldEvent.searchTerms)
+                {
+                    newEvent.searchTerms = oldEvent.searchTerms;
+                }
+            }
+
+            newEvent.searchResults = [];            
+            _tempRequestId = 0;
+            dispatchEvent(newEvent);
         }
     }
 }

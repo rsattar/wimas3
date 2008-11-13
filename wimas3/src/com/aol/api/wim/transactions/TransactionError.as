@@ -12,13 +12,44 @@ LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICUL
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
 */
 
-package com.aol.api {
-  
-    /**
-     * A way to keep track of what release you're using. The version is
-     * printed by the logger when it starts up.
-     */
-    public class Version {
-        public static const NUMBER:String = "0.1";
+
+
+package com.aol.api.wim.transactions
+{
+    public class TransactionError
+    {
+        
+        protected var _errorOccurred:Boolean = false;
+        protected var _errorString:String = null;
+        
+        
+        public function TransactionError(errorString:String = null)
+        {
+        	if (errorString)
+        	{
+        		_errorString = errorString;
+        		_errorOccurred = true;
+        	}
+        }
+        
+        public function isError():Boolean
+        {
+            return _errorOccurred;
+        }
+        
+        public function getErrorString():String
+        {
+            return _errorString;
+        }
+        
+        public function setError(isError:Boolean):void
+        {
+            _errorOccurred = isError;
+        }
+        
+        public function setErrorString(errorString:String):void
+        {
+            _errorString = errorString;
+        }
     }
 }

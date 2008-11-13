@@ -21,6 +21,7 @@ package com.aol.api.wim
 
             _authClass = MockClientLogin;
             _loaderClass = MockURLLoader;
+            _fetchRequestTimeoutMs = 7000;
         }
         
         public function runFetchEventsNow():void {

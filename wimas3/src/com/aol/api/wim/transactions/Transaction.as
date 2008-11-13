@@ -64,12 +64,35 @@ package com.aol.api.wim.transactions {
             _logger = session.logger;
             _parser = session.parser;
         }
+        
+        /*
+        // TODO: Build out createSigBase to make signed requests easier
+        public static function createSigBase(apiBaseURL:String, method:String, vars:URLVariables, requestMethod:String = "GET"):String
+        {
+            var sigBase:String = "";
+            for(var i:String in vars)
+            {
+                trace(i+" : "+vars[i]);
+                sigBase += "&"+i+"="+vars[i];
+            }
+            sigBase = vars.toString();
+            return sigBase;
+        }
+        */
+                
+        public static function encodeStrPart(s:String):String {
+            var r:String = encodeURIComponent(s);
+            r = r.replace(/\+/, "%2B");
+            r = r.replace(/_/, "%5F");
+            return r;
+        }
 
         protected function generateSignature(query:String, sessionKey:String):String {
             // Generate hash signature
             var sig_sha256:String = (new HMAC()).SHA256_S(sessionKey, query);
             // Append the sig_sha256 data
-            return "&sig_sha256="+sig_sha256;
+            //return "&sig_sha256="+sig_sha256;
+            return sig_sha256;
         }
 
         /**
@@ -78,15 +101,21 @@ package com.aol.api.wim.transactions {
          *  
          * @param query The URL to load
          * @param requestMethod GET or POST
+         * @param context Optional. Provide an object which can be queried on a response/error.
+         * @param maxtimeoutMs Optional. If non-zero, a timer is started. An IO_ERROR is dispatched if the timer is exceeded.
          * @context See ResultLoader.  Only honored if ResultLoader is the loader type in use.
          * 
          */
-        protected function sendRequest(query:String, requestMethod:String = "GET", context:Object=null):void {
+        protected function sendRequest(query:String, requestMethod:String = "GET", context:Object=null, maxTimeoutMs:uint=0):void {
             var theRequest:URLRequest = new URLRequest(query);
             var loader:URLLoader = _session.createURLLoader();
             
             if (loader is ResultLoader) {
                 ResultLoader(loader).context = context;
+                if(maxTimeoutMs > 0)
+                {
+                    ResultLoader(loader).maxTimeoutMs = maxTimeoutMs;
+                }
             }
             
             theRequest.method = requestMethod;
@@ -139,7 +168,7 @@ package com.aol.api.wim.transactions {
         }
         
         // Generic IO Error Event Listener
-        private function handleIOError(evt:IOErrorEvent):void {
+        protected function handleIOError(evt:IOErrorEvent):void {
             _logger.error("IOError");
             //FIXME: what to do here?
         }

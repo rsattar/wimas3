@@ -70,15 +70,17 @@ package com.aol.api.wim.transactions {
                 var user:User = new AMFResponseParser().parseUser(_response.data.myInfo);
                 
                 // Dispatch a state update result
-                _logger.debug("Dispatching PRESENCE_STATE_UPDATE_RESULT based on SetState server response: {0}", user);
+                //_logger.debug("Dispatching PRESENCE_STATE_UPDATE_RESULT based on SetState server response: {0}", user);
                 var newStateEvent:UserEvent = new UserEvent(UserEvent.PRESENCE_STATE_UPDATE_RESULT, user, true, true);
                 dispatchEvent(newStateEvent);
-                
-                
-                // Due to bugs in host, we are not guaranteed that a "myInfo" even will be fired, so we fire an extra one
+                /*
+                // TODO: Dispatch 'myInfo' after setState still required? 
+                // Now it looks like the host *does* send out "myInfo" events whenever we change state.
+                // In the past were not guaranteed that a "myInfo" even would be fired, so we fired an extra one
                 _logger.debug("Dispatching MY_INFO_UPDATED based on SetState server response: {0}", user);
                 var newMyInfoEvent:UserEvent = new UserEvent(UserEvent.MY_INFO_UPDATED, user, true, true);
                 dispatchEvent(newMyInfoEvent);
+                */
             }                 
         }
     }

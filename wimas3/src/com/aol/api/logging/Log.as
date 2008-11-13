@@ -15,8 +15,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 package com.aol.api.logging
 {
 	import com.aol.api.Version;
+	
 	import flash.utils.getQualifiedClassName;
-	import flash.utils.describeType;
 
     /**
      * A very light-weight, zero-configuration logger.  The purpose of this logger is to be one step better than trace.  
@@ -166,14 +166,18 @@ package com.aol.api.logging
 		
 			var objectAsText:String = new String();
 		
-        	for (var prop:Object in object) {
-        		objectAsText += " \n" + tab + prop + " (" + getQualifiedClassName(object[prop]) + "): ";     		
-        		if (getQualifiedClassName(object[prop]) == "Object") {
-        			objectAsText += prettyPrintObject(object[prop], spaces+4);
-        		} else {
-        			objectAsText += object[prop];
-        		}
-        	}
+		    // Let's not go more than 10 levels down.
+		    if (spaces <= 4*10)
+		    {
+            	for (var prop:Object in object) {
+            		objectAsText += " \n" + tab + prop + " (" + getQualifiedClassName(object[prop]) + "): " + 
+            		  prettyPrintObject(object[prop], spaces+4);
+            	}
+            }
+            else
+            {
+                objectAsText = object.toString();
+            }   
         	
         	// If the object has no enumerable properties, there's not much we can do.
         	// There is some chance that we could get more information about the object by using describeObject but 

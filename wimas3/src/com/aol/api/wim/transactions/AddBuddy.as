@@ -62,16 +62,15 @@ package com.aol.api.wim.transactions {
         override protected function requestComplete(evt:Event):void {
             super.requestComplete(evt);
             var loader:URLLoader = evt.target as URLLoader;
-            //_logger.debug("AddBuddy Response XML: "+String(loader.data));
+            _logger.debug("AddBuddy Response: \n{0}", _response);
             
             var statusCode:uint = _response.statusCode;
             var requestId:uint = _response.requestId;
             //get the old event so we can create the new event
             var oldEvent:BuddyListEvent = getRequest(requestId) as BuddyListEvent;
-            if(statusCode == 200) {
-                var newEvent:BuddyListEvent = new BuddyListEvent(BuddyListEvent.BUDDY_ADD_RESULT, oldEvent.buddy, oldEvent.group, null, true, true);
-                dispatchEvent(newEvent);
-            }                 
+            var newEvent:BuddyListEvent = new BuddyListEvent(BuddyListEvent.BUDDY_ADD_RESULT, oldEvent.buddy, oldEvent.group, null, true, true);
+            newEvent.statusCode = statusCode;
+            dispatchEvent(newEvent);                
         }
     }
 }

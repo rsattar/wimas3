@@ -109,6 +109,8 @@ package com.aol.api.wim.transactions {
          */        
         protected function onTimeoutExceeded(evt:TimerEvent):void {
             trace("Timeout exceeded ("+(maxTimeoutMs/1000)+"s) requesting URL: "+(currentRequest ? currentRequest.url : "(unavailable)"));
+            // Cancel our previous request
+            super.close();
             dispatchEvent(new IOErrorEvent(IOErrorEvent.IO_ERROR, false, false, "Timeout exceeded"));
         }
         

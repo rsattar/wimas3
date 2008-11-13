@@ -12,8 +12,11 @@ import com.aol.api.wim.data.User;
 import com.aol.api.wim.data.types.AuthChallengeType;
 import com.aol.api.wim.data.types.PresenceState;
 import com.aol.api.wim.data.types.SessionState;
+import com.aol.api.wim.data.types.UserType;
+import com.aol.api.wim.events.AttributeEvent;
 import com.aol.api.wim.events.AuthChallengeEvent;
 import com.aol.api.wim.events.BuddyListEvent;
+import com.aol.api.wim.events.MemberDirectoryEvent;
 import com.aol.api.wim.events.SessionEvent;
 import com.aol.api.wim.events.UserEvent;
 import com.aol.api.wim.testing.testclient.TestClientLogger;
@@ -58,6 +61,9 @@ protected var _authBaseURL:String =   AUTH_BASE_DEV;
 [Bindable]
 private var _useMockServer:Boolean = false;
 private var _numFetchEventsRequested:int = 0;
+
+// Determine SMS # variables
+private var _retrievingSMS:Boolean  =   false;
 
 protected function initPanel():void {
     
@@ -105,13 +111,200 @@ private function onSendIMClick():void {
     }
     if(item) {
         var message:String = txtImInput.text;
-        if(name) {
+        if(message) {
             _session.sendIMToBuddy(user.aimId, message);
         }
     } else {
         Alert.show("No buddy selected.");
     }
     trace(item);
+}
+
+private function onBLSelectionChange():void
+{
+    return;
+    var item:* = buddyListTree.selectedItem;
+    var user:User;
+    if(item != null && item is User) {
+        user = item;
+    }
+    if(user)
+    {
+        // launch a getAttribute
+    } 
+    else 
+    {
+        txtFriendlyName.text = "";
+        txtSmsNumber.text = "";
+    }
+}
+
+private function onGetBuddyAttribClick():void
+{
+    /*
+    var vars:URLVariables = new URLVariables();
+    vars.foo = "value1";
+    vars.bar = "value2";
+    var sigBase = Transaction.createSigBase(null, null, vars);
+    */
+    
+    var item:* = buddyListTree.selectedItem;
+    var user:User;
+    if(item != null && item is User) {
+        user = item;
+    }
+    if(user)
+    {
+        _session.getBuddyAttribute(user.aimId);
+    } 
+    else 
+    {
+        Alert.show("No buddy selected.");
+    }
+    trace(item);
+}
+
+private function onBuddyAttributeReceived(evt:AttributeEvent):void
+{
+    var user:User = evt.user;
+    var attribs:Object = evt.attributes;
+    txtFriendlyName.text = attribs.friendly ? attribs.friendly : "";
+    txtSmsNumber.text = attribs.smsNumber ? attribs.smsNumber : "";
+    
+    if(_retrievingSMS)
+    {
+        if(attribs.smsNumber)
+        {
+            smsNumberLabel.text = attribs.smsNumber;
+            smsNumberCaption.text = "SMS # (attrib)";
+            _retrievingSMS = false;
+        }
+        else if(true || user.userType == UserType.ICQ)
+        {
+            // we are in the middle of determining the SMS number, and buddy attributes doesn't have the number
+            // do a member directory lookup (only available for icq)
+            _session.getMemberDirectory([user.aimId]);
+            
+            smsNumberLabel.text = "Retrieving (member dir)...";
+        }
+        else
+        {
+            // we are aim, and the number was not found
+            smsNumberLabel.text = "Not found";
+            _retrievingSMS = false; 
+        }
+    }
+}
+
+private function onSetFriendlyNameClick():void
+{
+    var item:* = buddyListTree.selectedItem;
+    var user:User;
+    if(item != null) {
+        if (item is User) {
+            user = item;
+        }
+    }
+    if(item)
+    {
+        var friendlyText:String = txtFriendlyName.text;
+        if(!friendlyText)
+        {
+            _logger.debug("Setting null friendlyName to '' to clear it");
+            friendlyText = "";
+        }
+        _session.setBuddyAttribute(user.aimId, { friendly : friendlyText });
+    } 
+    else 
+    {
+        Alert.show("No buddy selected.");
+    }
+    trace(item);
+}
+
+private function onSetSMSClick():void
+{
+    var user:User = getUserFromBLItem();
+    if(user)
+    {
+        
+        var smsText:String = txtSmsNumber.text;
+        if(!smsText)
+        {
+            _logger.debug("Setting null smsText to '' to clear it");
+            smsText = "";
+        }
+        _session.setBuddyAttribute(user.aimId, { smsNumber : smsText });
+    } 
+    else 
+    {
+        Alert.show("No buddy selected.");
+    }
+}
+
+private function onGetMemberDirClick():void
+{
+    var user:User = getUserFromBLItem();
+    if(user)
+    {
+        // Fire off a member dir get
+        _session.getMemberDirectory([user.aimId]);
+    }
+    else
+    {
+        Alert.show("No buddy selected.");
+    }
+}
+
+private function onGetMemberDirResult(evt:MemberDirectoryEvent):void
+{
+    trace("");
+    //trace(evt.toString());
+    // phone number for mobile is: evt.searchResults[0].profile.validatedCellular
+    if(_retrievingSMS && evt.searchResults.length)
+    {
+        var number:String = evt.searchResults[0].profile.validatedCellular;
+        _logger.debug("MDIR profile: "+evt.searchResults[0].profile);
+        if(number)
+        {
+            smsNumberLabel.text = number;
+            smsNumberCaption.text = "SMS # (member dir)";
+        }
+        else
+        {
+            smsNumberLabel.text = "Not Found";
+        }
+        
+        _retrievingSMS = false;
+    }
+}
+
+private function onDetermineCellClick():void
+{
+    var user:User = getUserFromBLItem();
+    if(!user)
+    {
+        Alert.show("No buddy selected.");
+        return;
+    }
+    
+    // First do a getBuddyAttribute lookup, if that fails, do a member dir get
+    smsNumberCaption.text = "SMS #";
+    smsNumberLabel.text = "Retrieving (attribs)...";
+    _retrievingSMS = true;
+    // Kick off the buddy attribute lookup
+    _session.getBuddyAttribute(user.aimId);
+    
+}
+
+private function getUserFromBLItem():User
+{
+    var item:* = buddyListTree.selectedItem;
+    if(item != null && item is User) {
+        trace(item);
+        return item as User;
+    } 
+    return null;
 }
 
 private function signOnToggle():void {
@@ -218,6 +411,8 @@ private function createSession():Session {
     session.addEventListener(SessionEvent.EVENTS_FETCHED, onEventsFetched);
     session.addEventListener(BuddyListEvent.LIST_RECEIVED, onBLReceived);
     session.addEventListener(UserEvent.MY_INFO_UPDATED, onMyInfoUpdated);
+    session.addEventListener(AttributeEvent.BUDDY_ATTRIBUTE_GET_RESULT, onBuddyAttributeReceived);
+    session.addEventListener(MemberDirectoryEvent.DIRECTORY_GET_RESULT, onGetMemberDirResult);
     
     return session;
 }
@@ -235,6 +430,9 @@ private function destroySession():void {
     _session.removeEventListener(SessionEvent.STATE_CHANGED, onSessionStateChange);
     _session.removeEventListener(SessionEvent.EVENTS_FETCHED, onEventsFetched);
     _session.removeEventListener(BuddyListEvent.LIST_RECEIVED, onBLReceived);
+    _session.removeEventListener(UserEvent.MY_INFO_UPDATED, onMyInfoUpdated);
+    _session.removeEventListener(AttributeEvent.BUDDY_ATTRIBUTE_GET_RESULT, onBuddyAttributeReceived);
+    _session.removeEventListener(MemberDirectoryEvent.DIRECTORY_GET_RESULT, onGetMemberDirResult);
     _session = null;
 }
 

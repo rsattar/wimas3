@@ -1,12 +1,12 @@
-<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<?xml version="1.0" encoding="UTF-8"?>
 <flexLibProperties version="1">
-  <includeClasses>
-    <classEntry path="com.aol.api.wim.MockSession"/>
-    <classEntry path="com.aol.api.Quotes"/>
-    <classEntry path="com.aol.api.openauth.MockClientLogin"/>
-    <classEntry path="com.aol.api.MockServer"/>
-    <classEntry path="com.aol.api.MockURLLoader"/>
-  </includeClasses>
-  <includeResources/>
-  <namespaceManifests/>
+<includeClasses>
+<classEntry path="com.aol.api.wim.MockSession"/>
+<classEntry path="com.aol.api.Quotes"/>
+<classEntry path="com.aol.api.openauth.MockClientLogin"/>
+<classEntry path="com.aol.api.MockServer"/>
+<classEntry path="com.aol.api.MockURLLoader"/>
+</includeClasses>
+<includeResources/>
+<namespaceManifests/>
 </flexLibProperties>

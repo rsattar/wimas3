@@ -18,6 +18,7 @@ package com.aol.api.wim {
     import com.aol.api.wim.data.DataIM;
     import com.aol.api.wim.data.Group;
     import com.aol.api.wim.data.IM;
+    import com.aol.api.wim.data.SMSInfo;
     import com.aol.api.wim.data.SMSSegment;
     import com.aol.api.wim.data.User;
     import com.aol.api.wim.interfaces.IResponseParser;
@@ -45,7 +46,11 @@ package com.aol.api.wim {
             u.capabilities      = parseCapabilities(data.capabilities);
             u.countryCode       = data.ipCountry;
             u.sms               = parseSMSSegment(data.smsSegment);
+            u.smsNumber         = data.smsNumber;
             u.bot               = parseBot(data);
+            u.nonBuddy          = (data.nonBuddy > 0)?true:false;
+            u.invisible         = (data.invisible && (data.invisible > 0))?true:false;
+            u.userType          = data.userType;
             return u;
         }
         
@@ -121,6 +126,24 @@ package com.aol.api.wim {
             return new IM(msg, new Date(timestamp*1000), source, recipient, true, isAutoResponse, isOffline);
         }
         
+        public function parseSMSInfo(data:*):SMSInfo {
+            if(!data) { return null; }
+            
+            var smsInfo:SMSInfo = new SMSInfo();
+            
+            smsInfo.errorCode = Number(data.smsError);
+            smsInfo.reasonText = data.smsReason ?  String(data.smsReason) : "";
+            smsInfo.carrierId = Number(data.smsCarrierID);
+            smsInfo.remainingCount = Number(data.smsRemainingCount);
+            smsInfo.maxAsciiLength = Number(data.smsMaxAsciiLength);
+            smsInfo.maxUnicodeLength = Number(data.smsMaxUnicodeLength);
+            smsInfo.carrierName = data.smsCarrierName ? String(data.smsCarrierName) : "";
+            smsInfo.carrierUrl = data.smsCarrierUrl ? String(data.smsCarrierUrl) : "";
+            smsInfo.balanceGroup = data.smsBalanceGroup ? String(data.smsBalanceGroup) : "";
+            
+            return smsInfo;
+        }
+        
         // TODO: Verify that parseDataIM works once we get IM send/recv working
         public function parseDataIM(data:*, recipient:User=null):DataIM {
             if(!data) { return null; }
@@ -132,8 +155,7 @@ package com.aol.api.wim {
             return new DataIM(msg, dataType, new Date(), source, recipient, capability, inviteMsg);
         }
         
-        private function parseCapabilities(data:Array):Array {
-            
+        private function parseCapabilities(data:*):Array {
             var caps:Array = new Array();
             
             if(data) {

@@ -18,6 +18,8 @@ package com.aol.api.wim {
     import com.aol.api.wim.data.DataIM;
     import com.aol.api.wim.data.Group;
     import com.aol.api.wim.data.IM;
+    import com.aol.api.wim.data.SMSInfo;
+    import com.aol.api.wim.data.SMSSegment;
     import com.aol.api.wim.data.User;
     import com.aol.api.wim.interfaces.IResponseParser;
     
@@ -51,7 +53,32 @@ package com.aol.api.wim {
             u.buddyIconURL      = xml.buddyIcon.text();
             u.presenceIconURL   = xml.presenceIcon.text()
             u.capabilities      = parseCapabilities(xml.capabilities.text());
+            //
+            u.friendlyName      = xml.friendly.text();
+            u.countryCode       = xml.ipCountry.text();
+            u.sms               = parseSMSSegment(xml.smsSegment);
+            u.smsNumber         = xml.smsNumber.text();
+            u.bot               = parseBot(xml);
+            u.nonBuddy          = (xml.nonBuddy > 0)?true:false;
+            u.invisible         = (xml.invisible && (xml.invisible > 0))?true:false;
+            u.userType          = xml.userType.text();
             return u;
+        }
+        
+        public function parseBot(data:*):Boolean {
+            if (data.bot && data.bot > 0) {
+                return true;
+            } 
+            return false; 
+        }
+        
+        public function parseSMSSegment(data:*):SMSSegment {
+            if(!data || (data as XMLList).length() == 0) { return null; }
+            var sms:SMSSegment = new SMSSegment();
+            sms.initial     = data.initial.text();
+            sms.single      = data.single.text();
+            sms.trailing    = data.trailing.text();            
+            return sms;           
         }
         
         /**
@@ -123,6 +150,29 @@ package com.aol.api.wim {
             var msg:String = xml.message.text();
             var timestamp:uint = uint(xml.timestamp.text());
             return new IM(msg, new Date(timestamp), source, recipient, true, isAutoResponse, isOffline);
+        }
+        
+        
+        public function parseSMSInfo(data:*):SMSInfo {
+            if(!data) { return null; }
+            
+            namespace imNS             = "http://developer.aim.com/xsd/im.xsd";
+            use namespace imNS;
+            var xml:XML = XML(data);
+            
+            var smsInfo:SMSInfo = new SMSInfo();
+            
+            smsInfo.errorCode = Number(xml.smsError.text());
+            smsInfo.reasonText = String(xml.smsReason.text());
+            smsInfo.carrierId = Number(xml.smsCarrierID.text());
+            smsInfo.remainingCount = Number(xml.smsRemainingCount.text());
+            smsInfo.maxAsciiLength = Number(xml.smsMaxAsciiLength.text());
+            smsInfo.maxUnicodeLength = Number(xml.smsMaxUnicodeLength.text());
+            smsInfo.carrierName = String(xml.smsCarrierName.text());
+            smsInfo.carrierUrl = String(xml.smsCarrierUrl.text());
+            smsInfo.balanceGroup = String(xml.smsBalanceGroup.text());
+            
+            return smsInfo;
         }
         
         /**

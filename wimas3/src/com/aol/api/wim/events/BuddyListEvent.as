@@ -90,6 +90,11 @@ package com.aol.api.wim.events
          */
         public var buddyList:BuddyList;
         
+        /**
+         * The status code of the response from the server. 
+         */
+        public var statusCode:Number;
+        
         public function BuddyListEvent(type:String, buddy:User, group:Group, buddyList:BuddyList=null, bubbles:Boolean=false, cancelable:Boolean=false)
         {
             super(type, bubbles, cancelable);
@@ -109,6 +114,7 @@ package com.aol.api.wim.events
                                 " buddy=" + buddy.toString() + 
                                 ", group=" + group.toString() +
                                 ", buddyList" + buddyList.toString() + 
+                                ", statusCode" + statusCode.toString() +                                 
                                 "]";
             return output; 
         }

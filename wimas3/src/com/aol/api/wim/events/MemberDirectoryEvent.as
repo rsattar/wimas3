@@ -24,6 +24,9 @@ package com.aol.api.wim.events
         /** Event type for completed searches. */
         public static const DIRECTORY_SEARCH_RESULT:String = "directorySearchResult";
         
+        /** Event type for an IO_ERROR while doing a member directory search */
+        public static const DIRECTORY_SEARCH_IO_ERROR:String = "directorySearchIOError";
+        
         /** 
           * Event type for a get which is about to be performed (a 'get' is a query for the data of an individual user. 
           * Cancel this event to prevent it from being requested 
@@ -32,6 +35,9 @@ package com.aol.api.wim.events
         
         /** Event type for completed get. */
         public static const DIRECTORY_GET_RESULT:String = "directoryGetResult";
+        
+        /** Event type for an IO_ERROR while doing a member directory get */
+        public static const DIRECTORY_GET_IO_ERROR:String = "directoryGetIOError";
 
         /**
          * A hash of all conditions searched against.

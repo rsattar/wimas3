@@ -22,6 +22,7 @@ package com.aol.api.openauth
     import flash.events.Event;
     import flash.events.EventDispatcher;
     import flash.events.IOErrorEvent;
+    import flash.events.SecurityErrorEvent;
     import flash.net.URLRequest;
     import flash.net.URLRequestMethod;
     import flash.net.URLVariables;
@@ -31,6 +32,9 @@ package com.aol.api.openauth
         protected static const API_BASE:String   = "https://api.screenname.aol.com/";
         protected static const ON_METHOD:String  = "auth/clientLogin";
         protected static const OFF_METHOD:String = "auth/logout";
+        
+        protected static const CLIENT2WEB_URL:String = "http://my.screenname.aol.com/_cqr/login/login.psp";
+        
         
         internal var apiBaseURL:String           = API_BASE;
         
@@ -198,6 +202,7 @@ package com.aol.api.openauth
             theRequest.data = vars; //variables
             loader.addEventListener(Event.COMPLETE, signOnComplete);
             loader.addEventListener( IOErrorEvent.IO_ERROR, handleIOError );
+            loader.addEventListener( SecurityErrorEvent.SECURITY_ERROR, handleSecurityError );
             loader.load(theRequest);
         }
         
@@ -235,6 +240,7 @@ package com.aol.api.openauth
             
             loader.addEventListener( Event.COMPLETE, signOffComplete);
             loader.addEventListener( IOErrorEvent.IO_ERROR, handleIOError );
+            loader.addEventListener( SecurityErrorEvent.SECURITY_ERROR, handleSecurityError );
             loader.load(theRequest);
         }
                 
@@ -273,6 +279,18 @@ package com.aol.api.openauth
             var data:String = loader.data;
             
             _logger.debug("IOERROR, type="+event.type+", text="+event.text);
+            dispatchEvent(event);
+        }
+        
+        /**
+         * Generic security error handler for any host requests.
+         */
+        private function handleSecurityError(event:SecurityErrorEvent):void {
+            var loader:ResultLoader = ResultLoader(event.target);
+            var xml:XML = new XML(String(loader.data));
+            var data:String = loader.data;
+            
+            _logger.debug("SECURITYERROR, type="+event.type+", text="+event.text);
             dispatchEvent(event);
         }
          
@@ -330,9 +348,14 @@ package com.aol.api.openauth
                 dispatchEvent(new AuthEvent(AuthEvent.CHALLENGE, Number(statusCode), statusText, Number(statusDetailCode), null, null, challengeContext, challengeUrl, info));
             } else if (statusCode == "200") {
                 // Create authDigest of password and sessionSecret. This is used as a key for signing future requests.
+                _logger.debug("[DEBUG] sessionSecret:" + sessionSecret);
                 var sessionKey:String = new HMAC().SHA256_S_Base64(password, sessionSecret);
-                //_logger.debug("Digest of SHA256(password, sessionSecret) is: "+sessionKey);
+                
+                _logger.debug("Digest of SHA256(password, sessionSecret) is: "+sessionKey);
                 dispatchEvent(new AuthEvent(AuthEvent.LOGIN, Number(statusCode), statusText, Number(statusDetailCode), new AuthToken(tokenStr, Number(expiresIn), hostTime, clientTime), sessionKey, challengeContext, info));
+                
+                
+                
             }
             else {
                 dispatchEvent(new AuthEvent(AuthEvent.ERROR, Number(statusCode), statusText, Number(statusDetailCode), null, null, challengeContext, info));
@@ -377,5 +400,50 @@ package com.aol.api.openauth
         public function get clientTime():Number {
             return _clientTime;
         }        
+
+		public function signOnClient2Web2(token:String,sessionKey:String):void {
+
+            var loader:ResultLoader = createURLLoader();
+            var url:String = CLIENT2WEB_URL;
+
+            var queryString:String = "a="+token;
+            queryString += "&k="+encodeStrPart(devId);
+            queryString += "&entryType=client2Web";
+            queryString += "&f=xml";
+            queryString += "&ts=" + (new Date().time/1000);
+           
+            var encodedQuery:String = encodeURIComponent(queryString);
+            
+            _logger.debug("signOn2Web QueryParams    : "+queryString);
+            _logger.debug("Session Key    : "+sessionKey);
+        
+            // Generate OAuth Signature Base
+            var sigBase:String = "GET&"+encodeStrPart(CLIENT2WEB_URL)+"&"+encodedQuery;
+            _logger.debug("Signature Base : "+sigBase);
+            // Generate hash signature
+            var sig_sha256:String = (new HMAC()).SHA256_S_Base64(sessionKey, sigBase);
+
+            _logger.debug("Signature Hash : "+encodeURIComponent(sig_sha256));
+
+            // Append the sig_sha256 data
+            queryString += "&sig_sha256="+encodeURIComponent(sig_sha256);
+            _logger.debug("FinalQuery     : "+queryString);
+            
+            
+            var theRequest:URLRequest = new URLRequest(CLIENT2WEB_URL + "?" + queryString);
+
+            loader.addEventListener(Event.COMPLETE, signOnClient2WebComplete);
+            loader.addEventListener( IOErrorEvent.IO_ERROR, handleIOError );
+            loader.load(theRequest);
+		}
+		
+        private function signOnClient2WebComplete(event:Event):void {
+            var loader:ResultLoader = ResultLoader(event.target);
+            var xml:XML = new XML(String(loader.data));
+            var data:String = loader.data;
+            _logger.debug("signOnClient2WebResponse:\n"+data);
+        }
+
+
     }
 }

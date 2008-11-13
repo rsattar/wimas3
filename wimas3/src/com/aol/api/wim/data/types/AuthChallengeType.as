@@ -54,5 +54,12 @@ package com.aol.api.wim.data.types {
          * Account security question must be answered. Inspect <code>accountSecurityQuestion</code> for more information.
          */        
         public static const ASQ_CHALLENGE:String = "asqChallenge";
+        
+        /**
+         * Dude, you are SOL.  This may mean that the account is parentally blocked or there may be other reasons but this
+         * account will not be allowed to log in.
+         */        
+        public static const NOT_ALLOWED:String = "SOL";        
+        
     }
 }

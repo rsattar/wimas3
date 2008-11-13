@@ -54,7 +54,30 @@ package com.aol.api.wim.transactions
                 "&offlineIM=" + evt.im.isOfflineMessage +
                 "&comscoreChannel=" + _session.comScoreId;
             _logger.debug("SendIMQuery: " + _session.apiBaseURL + method + query);
-            sendRequest(_session.apiBaseURL + method + query);            
+            
+            var destUrl:String = _session.apiBaseURL + method + query;
+            
+            
+            if (destUrl.length > _session.urlLimit)
+            {
+	            var statusCode:String = "9999";
+	            var statusText:String = "Transaction Error";
+	            
+	            //get the old event so we can create the new event
+	            var oldEvent:IMEvent = getRequest(requestId) as IMEvent;
+	            var newEvent:IMEvent = new IMEvent(IMEvent.IM_SEND_RESULT, oldEvent.im, true, true);
+	            newEvent.statusCode = statusCode;
+	            newEvent.statusText = statusText;
+//	            newEvent.smsCode = _response.smsCode;
+	            newEvent.transactionError = new TransactionError(_session.urlLimit + " url limit length exceeded by:" + (destUrl.length - _session.urlLimit));
+	            _logger.debug("Transaction Error: " + statusCode + ": " + statusText);
+	            dispatchEvent(newEvent);
+            	// we don't send the response, as we know we are exceeding the url limit
+            }
+            else
+            {
+                sendRequest(_session.apiBaseURL + method + query);
+            }            
         }
         
         override protected function requestComplete(evt:Event):void {
@@ -70,9 +93,19 @@ package com.aol.api.wim.transactions
             //get the old event so we can create the new event
             var oldEvent:IMEvent = getRequest(requestId) as IMEvent;
             var newEvent:IMEvent = new IMEvent(IMEvent.IM_SEND_RESULT, oldEvent.im, true, true);
-            newEvent.statusCode = statusCode;
-            newEvent.statusText = statusText;
-            _logger.debug("SendIM Response: " + statusCode + ": " + statusText);
+            newEvent.statusCode  = statusCode;
+            newEvent.statusText  = statusText;
+            newEvent.smsCode     = _parser.parseSMSInfo(_response.data.smsCode);
+            if(_response.data.subCode)
+            {
+                newEvent.subCodeError     = _response.data.subCode.error;
+                newEvent.subCodeReason = _response.data.subCode.reason;
+                newEvent.subCodeSubError = _response.data.subCode.subError;
+                newEvent.subCodeSubReason = _response.data.subCode.subReason;
+            }
+            // FIXME:  Need to copy smsData. 
+            if(statusCode == "200") _logger.debug("SendIM Response: " + statusCode + ": " + statusText);
+            else _logger.debug("SendIM Error; raw response: {0}", _response);
             dispatchEvent(newEvent);
         }
         
