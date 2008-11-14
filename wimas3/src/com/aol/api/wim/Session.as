@@ -101,7 +101,7 @@ package com.aol.api.wim {
      * <br/>
      * <code>
      * var session:Session = new Session(stageOrSprite, devId);
-     * // add event listensers (capturable)
+     * // add event listeners (capturable)
      * session.addEventListener(SessionEvent.SESSION_AUTHENTICATING, onAuthenticating, true);
      * // non-capture
      * session.addEventListener(SessionEvent.STATE_CHANGED, onSessionStateChange);
@@ -482,11 +482,7 @@ package com.aol.api.wim {
             _evtDispatch.addEventListener(SessionEvent.EVENTS_FETCHING, this.doFetchEvents, false, 0, true);
             _evtDispatch.addEventListener(SessionEvent.SESSION_ENDING, this.doSignOff, false, 0, true);
             _evtDispatch.addEventListener(UserEvent.MY_INFO_UPDATED, this.doMyInfoUpdateResult, false, 0, true);
-            
-//            if(StyleManager.getBoolean("global.capability.autoClient2WebAuth"))
-//            {
-//                _evtDispatch.addEventListener(BuddyListEvent.LIST_RECEIVED, this.doClient2WebSignOn, false, 0, true);
-//            }
+
             // Fetch events retry schedule
             // TODO: Load our retry schedule externally?
             //["0":3,"5":6,"10":15,"12":30,"14":60,"18":120]
@@ -855,7 +851,7 @@ package com.aol.api.wim {
         protected function doStartSessionAnonymous(evt:SessionEvent):void
         {
             var method:String = "aim/startSession";
-            var queryString:String = "anonymous=1&k=" + this.devId + "&f=amf3&events=presence,im";
+            var queryString:String = "anonymous=1&k=" + this.devId + "&f=xml&events=presence,im";
             if(_anonymousDisplayName)
             {
                 queryString += "&friendly="+_anonymousDisplayName;
@@ -1267,16 +1263,15 @@ package com.aol.api.wim {
         }
         
         /**
-         * Inspects each 'event' in the <code>evts</code> array and dispatches the appropriate event.
-         * Currently only the BuddyList event and the ENDSESSION is handled correctly.
-         * TODO: Finish all other event handling.
+         * Inspects each raw 'event' in the fetchEvent response <code>evts</code> array 
+         * and dispatches the appropriate event.
+         * 
          * @param evts An array of events
          * 
-         * @private
+         * @protected
          * 
          */        
-        protected function handleAIMEvents(evts:Array):void {            
-            // TODO: Need to complete, once we receive a correctly formatted fetchEvents response
+        protected function handleAIMEvents(evts:Array):void {   
             
             if ((evts != null) && (evts.length > 0)) { 
                 var evt:Object; 

@@ -28,6 +28,7 @@ package com.aol.api.wim.transactions
          */
         public function run(attributes:Object):void
         {
+            attributes["pdBlock"] = ["foo", "bar", "+number"];
             var method:String = "preference/setPermitDeny";
             var query:String =
                 "?f=amf3" +
@@ -45,12 +46,20 @@ package com.aol.api.wim.transactions
 
         protected function createParamString(paramName:String, o:Object):String
         {
+            var result:String = "";
             if(o[paramName] && (o[paramName].length > 0))
             {
-                return encodeURI("&" + paramName + "=" + o[paramName].join(","));
+                var numItems:Number = o[paramName].length;
+                // o[oaramName] might be an array of id's, so go through each id to url-safe them
+                // This is important for ids like phone numbers (+94945551234) and emails
+                for(var i:Number = 0; i<numItems; i++)
+                {
+                    o[paramName][i] = encodeStrPart(o[paramName][i]);
+                }
+                
+                result = "&" + encodeStrPart(paramName) + "=" + o[paramName].join(",");
             }
-            else
-                return "";
+            return result;
         }
         
         override protected function requestComplete(event:Event):void
