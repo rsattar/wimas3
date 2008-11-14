@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<flexLibProperties version="1">
+<includeClasses>
+<classEntry path="com.aol.api.Version"/>
+<classEntry path="com.aol.api.openauth.AuthToken"/>
+<classEntry path="com.aol.api.openauth.Base64"/>
+<classEntry path="com.aol.api.openauth.ClientLogin"/>
+<classEntry path="com.aol.api.openauth.HMAC"/>
+<classEntry path="com.aol.api.openauth.events.AuthEvent"/>
+</includeClasses>
+<includeResources/>
+<namespaceManifests/>
+</flexLibProperties>

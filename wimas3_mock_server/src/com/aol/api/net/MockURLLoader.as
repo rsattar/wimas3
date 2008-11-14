@@ -1,6 +1,6 @@
-package com.aol.api {
+package com.aol.api.net {
     
-    import com.aol.api.wim.transactions.ResultLoader;
+    import com.aol.api.MockServer;
     
     import flash.events.Event;
     import flash.events.IOErrorEvent;

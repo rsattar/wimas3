@@ -1,9 +1,8 @@
 package com.aol.api.wim
 {
-    import com.aol.api.MockURLLoader;
     import com.aol.api.logging.ILog;
+    import com.aol.api.net.MockURLLoader;
     import com.aol.api.openauth.MockClientLogin;
-    import com.aol.api.wim.events.MemberDirectoryEvent;
     
     import flash.display.DisplayObjectContainer;
 

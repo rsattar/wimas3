@@ -17,6 +17,7 @@ package com.aol.api.wim {
     import com.aol.api.Version;
     import com.aol.api.logging.ILog;
     import com.aol.api.logging.Log;
+    import com.aol.api.net.ResultLoader;
     import com.aol.api.openauth.AuthToken;
     import com.aol.api.openauth.ClientLogin;
     import com.aol.api.openauth.HMAC;
@@ -51,7 +52,6 @@ package com.aol.api.wim {
     import com.aol.api.wim.transactions.RemoveBuddy;
     import com.aol.api.wim.transactions.ReportSPIM;
     import com.aol.api.wim.transactions.RequestAuthorization;
-    import com.aol.api.wim.transactions.ResultLoader;
     import com.aol.api.wim.transactions.SearchMemberDirectory;
     import com.aol.api.wim.transactions.SendDataIM;
     import com.aol.api.wim.transactions.SendIM;

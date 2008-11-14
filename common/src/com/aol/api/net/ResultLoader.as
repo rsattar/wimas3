@@ -12,7 +12,7 @@ LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICUL
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
 */
 
-package com.aol.api.wim.transactions {
+package com.aol.api.net {
     
     import flash.events.Event;
     import flash.events.IOErrorEvent;

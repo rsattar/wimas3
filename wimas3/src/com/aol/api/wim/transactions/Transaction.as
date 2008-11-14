@@ -14,6 +14,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 package com.aol.api.wim.transactions {
     import com.aol.api.logging.ILog;
+    import com.aol.api.net.ResultLoader;
     import com.aol.api.openauth.HMAC;
     import com.aol.api.wim.Session;
     import com.aol.api.wim.events.EventController;

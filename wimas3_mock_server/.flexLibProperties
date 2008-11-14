@@ -5,7 +5,6 @@
 <classEntry path="com.aol.api.Quotes"/>
 <classEntry path="com.aol.api.openauth.MockClientLogin"/>
 <classEntry path="com.aol.api.MockServer"/>
-<classEntry path="com.aol.api.MockURLLoader"/>
 </includeClasses>
 <includeResources/>
 <namespaceManifests/>

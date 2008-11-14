@@ -16,8 +16,8 @@ package com.aol.api.openauth
 {
     import com.aol.api.logging.ILog;
     import com.aol.api.logging.Log;
+    import com.aol.api.net.ResultLoader;
     import com.aol.api.openauth.events.AuthEvent;
-    import com.aol.api.wim.transactions.ResultLoader;
     
     import flash.events.Event;
     import flash.events.EventDispatcher;
@@ -37,6 +37,7 @@ package com.aol.api.openauth
         
         
         internal var apiBaseURL:String           = API_BASE;
+        internal var client2WebURL:String        = CLIENT2WEB_URL;
         
         private var tokenStr:String              = null;
         private var expiresIn:String             = null;
@@ -101,6 +102,15 @@ package com.aol.api.openauth
             if(authBaseURL && authBaseURL != "") {
                 this.apiBaseURL = authBaseURL;
             }
+        }
+        
+        /**
+         * Allow pointing client2Web to other environments. 
+         */
+        public function set client2WebUrl(url:String):void {
+        	if(url && url != "") {
+        		this.client2WebURL = url;
+        	}
         }
         
         /**
@@ -404,7 +414,7 @@ package com.aol.api.openauth
 		public function signOnClient2Web2(token:String,sessionKey:String):void {
 
             var loader:ResultLoader = createURLLoader();
-            var url:String = CLIENT2WEB_URL;
+            var url:String = this.client2WebURL;
 
             var queryString:String = "a="+token;
             queryString += "&k="+encodeStrPart(devId);
@@ -418,7 +428,7 @@ package com.aol.api.openauth
             _logger.debug("Session Key    : "+sessionKey);
         
             // Generate OAuth Signature Base
-            var sigBase:String = "GET&"+encodeStrPart(CLIENT2WEB_URL)+"&"+encodedQuery;
+            var sigBase:String = "GET&"+encodeStrPart(url)+"&"+encodedQuery;
             _logger.debug("Signature Base : "+sigBase);
             // Generate hash signature
             var sig_sha256:String = (new HMAC()).SHA256_S_Base64(sessionKey, sigBase);
@@ -430,7 +440,7 @@ package com.aol.api.openauth
             _logger.debug("FinalQuery     : "+queryString);
             
             
-            var theRequest:URLRequest = new URLRequest(CLIENT2WEB_URL + "?" + queryString);
+            var theRequest:URLRequest = new URLRequest(url + "?" + queryString);
 
             loader.addEventListener(Event.COMPLETE, signOnClient2WebComplete);
             loader.addEventListener( IOErrorEvent.IO_ERROR, handleIOError );

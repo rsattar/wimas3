@@ -1,6 +1,6 @@
 package com.aol.api.openauth
 {
-    import com.aol.api.MockURLLoader;
+    import com.aol.api.net.MockURLLoader;
     import com.aol.api.logging.ILog;
     
     public class MockClientLogin extends ClientLogin
