@@ -15,6 +15,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 package com.aol.api.wim.transactions {
     import com.aol.api.logging.ILog;
     import com.aol.api.net.ResultLoader;
+    import com.aol.api.openauth.AuthToken;
     import com.aol.api.openauth.HMAC;
     import com.aol.api.wim.Session;
     import com.aol.api.wim.events.EventController;
@@ -80,12 +81,39 @@ package com.aol.api.wim.transactions {
             return sigBase;
         }
         */
-                
-        public static function encodeStrPart(s:String):String {
-            var r:String = encodeURIComponent(s);
-            r = r.replace(/\+/, "%2B");
-            r = r.replace(/_/, "%5F");
-            return r;
+        
+        /**
+         * Used as the value of the "&ts=" parameter in signed queries 
+         * @param authToken
+         * @return 
+         * 
+         */        
+        protected function getSigningTimestampValue(authToken:AuthToken):String
+        {
+            var now:Number = new Date().getTime() / 1000;           
+            _logger.debug("Host Time: {0}, Now: {1}", authToken.hostTime, now);
+            //queryString += "&ts="+ int(authToken.hostTime + Math.floor(now - authToken.clientTime));
+            return "" + int(authToken.hostTime + Math.floor(now - authToken.clientTime));
+        }
+        
+        protected function createSignatureFromQueryString(method:String, queryString:String):String
+        {
+            var encodedQuery:String = escape(queryString);
+            
+            
+            _logger.debug("AIMBaseURL     : "+_session.apiBaseURL + method);
+            _logger.debug("QueryParams    : "+queryString);
+            _logger.debug("Session Key    : "+_session.sessionKey);
+        
+        
+            // Generate OAuth Signature Base
+            var sigBase:String = "GET&"+ResultLoader.encodeStrPart(_session.apiBaseURL + method)+"&"+encodedQuery;
+            _logger.debug("Signature Base : "+sigBase);
+            // Generate hash signature
+            var sig_sha256:String = generateSignature(sigBase, _session.sessionKey);//(new HMAC()).SHA256_S_Base64(_sessionKey, sigBase);
+            //_logger.debug("Signature Hash : "+encodeURIComponent(sig_sha256));
+            var encodedSigParam:String = encodeURIComponent(sig_sha256);
+            return encodedSigParam;
         }
 
         protected function generateSignature(query:String, sessionKey:String):String {
