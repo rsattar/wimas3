@@ -35,6 +35,11 @@ package com.aol.api.wim.data {
         public var recent:Boolean;
         
         /**
+         * Some groups have a numerical 'smart' id
+         */
+        public var smart:Number;
+        
+        /**
          * Creates a new group object. If no users array is passed in,
          * an empty array will be created.
          *  
@@ -46,6 +51,7 @@ package com.aol.api.wim.data {
             this.label = name;
             this.users = (users == null) ? new Array() : users;
             this.recent = false;
+            this.smart = NaN;
         }
 
         public function toString():String {
