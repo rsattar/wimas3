@@ -39,6 +39,12 @@ package com.aol.api.wim.events {
          * be 200.
          */
         public static const IM_SEND_RESULT:String = "imSendResult";
+        
+        /**
+         * An event from the host (fetchEvents) that tell us an IM was sent from our identity. Note that
+         * this event will fire if _any_ session sends an IM, not just this one.
+         */
+        public static const IM_SENT:String = "imSent";
 
         /**
          * The value for the type property of an IM received event object. 

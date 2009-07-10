@@ -42,6 +42,10 @@ package com.aol.api.wim.data.types {
          */
         public static const IM:String           = "im";
         /**
+         * Indicates that this event contains instant message information that your identity sent (from any location)
+         */
+        public static const SENT_IM:String      = "sentIM";
+        /**
          * Indicates that this event contains data IM information
          */
         public static const DATA_IM:String      = "dataIM";
@@ -57,5 +61,10 @@ package com.aol.api.wim.data.types {
          * Indicates that someone has added the user to their list. 
          */
         public static const ADDED_TO_LIST:String = "userAddedToBuddyList";
+        
+        /**
+         * Indicates that someone did something involving their lifesteam 
+         */
+        public static const LIFESTREAM:String = "lifestream"; 
     }
 }
