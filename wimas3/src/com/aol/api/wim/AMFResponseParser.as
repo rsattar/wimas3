@@ -18,6 +18,7 @@ package com.aol.api.wim {
     import com.aol.api.wim.data.DataIM;
     import com.aol.api.wim.data.Group;
     import com.aol.api.wim.data.IM;
+    import com.aol.api.wim.data.IMRawMessageData;
     import com.aol.api.wim.data.SMSInfo;
     import com.aol.api.wim.data.SMSSegment;
     import com.aol.api.wim.data.User;
@@ -30,6 +31,7 @@ package com.aol.api.wim {
         }
 
         public function parseUser(data:*):User {
+            if(!data) { return null; }
             var u:User = new User();
             u.aimId             = data.aimId;
             u.displayId         = data.displayId;
@@ -103,11 +105,11 @@ package com.aol.api.wim {
             
             var g:Group = new Group(data.name, users);
             if(data.recent == 1) g.recent = true;
+            if(data.smart != null) g.smart = data.smart;
             return g;
         }
         
-        // TODO: Verify that parseIM works once we get IM send/recv working
-        public function parseIM(data:*, recipient:User=null, isOffline:Boolean=false):IM {
+        public function parseIM(data:*, recipient:User=null, isOffline:Boolean=false, incoming:Boolean=true):IM {
             if(!data) { return null; }
 
             var source:User = null;
@@ -123,7 +125,14 @@ package com.aol.api.wim {
             }            
             var msg:String = data.message;
             var timestamp:uint = data.timestamp;
-            return new IM(msg, new Date(timestamp*1000), source, recipient, true, isAutoResponse, isOffline);
+            
+            var im:IM = new IM(msg, new Date(timestamp*1000), source, recipient, incoming, isAutoResponse, isOffline);
+            
+            if(data.rawMsg) {
+                im.rawMessageData = new IMRawMessageData(data.rawMsg.base64Msg, data.rawMsg.memberCountry, data.rawMsg.clientCountry, data.rawMsg.ipCountry);
+            }
+            
+            return im;
         }
         
         public function parseSMSInfo(data:*):SMSInfo {

@@ -52,7 +52,7 @@ package com.aol.api.wim.interfaces {
          * @return an <code>Group</code> object
          * 
          */        
-        function parseIM(data:*, recipient:User=null, isOffline:Boolean=false):IM;
+        function parseIM(data:*, recipient:User=null, isOffline:Boolean=false, incoming:Boolean=true):IM;
         
         /**
          * Creates an <code>SMSInfo</code> object out of the data 

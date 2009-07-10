@@ -43,6 +43,12 @@ package com.aol.api.wim.data
         public var isOfflineMessage:Boolean;
         
         /**
+         * True if the message is an archived message (from AIM logs, or other means of storage). This is generally set
+         * by the client, and not by the wimas3 service, so by default this will usually be false. 
+         */
+        public var isArchivedMessage:Boolean;
+        
+        /**
          * The sender of the IM 
          */
         public var sender:User;
@@ -57,12 +63,18 @@ package com.aol.api.wim.data
          */
         public var incoming:Boolean;
         
-        public function IM(message:String, timestamp:Date, sender:User, recipient:User, incoming:Boolean, isAutoResponse:Boolean=false, isOfflineMessage:Boolean=false)
+        /**
+         * If not null, contains raw message information about the sender's country code, as well as a base64 encoded raw message block 
+         */        
+        public var rawMessageData:IMRawMessageData;        
+        
+        public function IM(message:String, timestamp:Date, sender:User, recipient:User, incoming:Boolean, isAutoResponse:Boolean=false, isOfflineMessage:Boolean=false, isArchivedMessage:Boolean=false)
         {
             this.message = message;
             this.timestamp = timestamp;
             this.isAutoResponse = isAutoResponse;
             this.isOfflineMessage = isOfflineMessage;
+            this.isArchivedMessage = isArchivedMessage;
             this.sender = sender;
             this.recipient = recipient;
             this.incoming = incoming;

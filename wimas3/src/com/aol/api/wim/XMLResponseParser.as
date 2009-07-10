@@ -18,6 +18,7 @@ package com.aol.api.wim {
     import com.aol.api.wim.data.DataIM;
     import com.aol.api.wim.data.Group;
     import com.aol.api.wim.data.IM;
+    import com.aol.api.wim.data.IMRawMessageData;
     import com.aol.api.wim.data.SMSInfo;
     import com.aol.api.wim.data.SMSSegment;
     import com.aol.api.wim.data.User;
@@ -131,7 +132,7 @@ package com.aol.api.wim {
          * @return An <code>IM</code> object.
          * 
          */  
-        public function parseIM(data:*, recipient:User=null, isOffline:Boolean=false):IM {
+        public function parseIM(data:*, recipient:User=null, isOffline:Boolean=false, incoming:Boolean=true):IM {
             if(!data) { return null; }
             
             var xml:XML = XML(data);
@@ -149,7 +150,26 @@ package com.aol.api.wim {
             }            
             var msg:String = xml.message.text();
             var timestamp:uint = uint(xml.timestamp.text());
-            return new IM(msg, new Date(timestamp), source, recipient, true, isAutoResponse, isOffline);
+            
+            var im:IM = new IM(msg, new Date(timestamp), source, recipient, incoming, isAutoResponse, isOffline);
+            
+            // WARN: This raw msg text parsing has not been tested, but was added to provide symmetry with AMFResponseParser
+            // If we ever get Session.as to work with xml-based fetch events, we need to verify this works
+            try {
+                    
+                var rawMsgList:XMLList = data..rawMsg;
+                if(rawMsgList.length() > 0) {
+                    var rawMsg:XML = rawMsgList[0];
+                    im.rawMessageData = new IMRawMessageData(rawMsg.base64Msg.text(), 
+                                                             rawMsg.memberCountry.text(), 
+                                                             rawMsg.clientCountry.text(), 
+                                                             rawMsg.ipCountry.text());
+                }
+            } catch (err:Error) {
+                trace("Error in XMLResponseParser trying to parse IM.rawMsg struct");
+            }
+            
+            return im;
         }
         
         
