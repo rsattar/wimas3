@@ -1,5 +1,6 @@
 package com.aol.api.wim.transactions
 {
+    import com.aol.api.net.ResultLoader;
     import com.aol.api.wim.Session;
     import com.aol.api.wim.events.PermitDenyEvent;
     
@@ -28,7 +29,6 @@ package com.aol.api.wim.transactions
          */
         public function run(attributes:Object):void
         {
-            attributes["pdBlock"] = ["foo", "bar", "+number"];
             var method:String = "preference/setPermitDeny";
             var query:String =
                 "?f=amf3" +
@@ -54,10 +54,10 @@ package com.aol.api.wim.transactions
                 // This is important for ids like phone numbers (+94945551234) and emails
                 for(var i:Number = 0; i<numItems; i++)
                 {
-                    o[paramName][i] = encodeStrPart(o[paramName][i]);
+                    o[paramName][i] = ResultLoader.encodeStrPart(o[paramName][i]);
                 }
                 
-                result = "&" + encodeStrPart(paramName) + "=" + o[paramName].join(",");
+                result = "&" + ResultLoader.encodeStrPart(paramName) + "=" + o[paramName].join(",");
             }
             return result;
         }
