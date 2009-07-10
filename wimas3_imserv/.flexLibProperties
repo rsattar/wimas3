@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<flexLibProperties version="1">
+<includeClasses>
+<classEntry path="com.aol.api.wim.data.IMServMemberResultCode"/>
+<classEntry path="com.aol.api.wim.transactions.imserv.GetIMServRecentIMs"/>
+<classEntry path="com.aol.api.wim.data.types.ChatBLDisplayType"/>
+<classEntry path="com.aol.api.wim.data.types.ChatIMReplyToType"/>
+<classEntry path="com.aol.api.wim.data.IMServMemberInfo"/>
+<classEntry path="com.aol.api.wim.data.types.ChatMembershipPolicy"/>
+<classEntry path="com.aol.api.wim.transactions.imserv.InviteMembersToIMServ"/>
+<classEntry path="com.aol.api.wim.data.types.IMServQueryFilter"/>
+<classEntry path="com.aol.api.wim.transactions.imserv.GetRecentIMServActivity"/>
+<classEntry path="com.aol.api.wim.data.IMServActivity"/>
+<classEntry path="com.aol.api.wim.transactions.imserv.RejectIMServ"/>
+<classEntry path="com.aol.api.wim.data.IMServActivityList"/>
+<classEntry path="com.aol.api.wim.transactions.imserv.GetIMServSettings"/>
+<classEntry path="com.aol.api.wim.data.IMServGroup"/>
+<classEntry path="com.aol.api.wim.transactions.imserv.GetMyIMServs"/>
+<classEntry path="com.aol.api.wim.events.IMServEvent"/>
+<classEntry path="com.aol.api.wim.transactions.imserv.JoinIMServ"/>
+<classEntry path="com.aol.api.wim.transactions.imserv.GetIMServUserSettings"/>
+<classEntry path="com.aol.api.wim.events.IMServActionEvent"/>
+<classEntry path="com.aol.api.wim.data.types.IMServQuerySortOrder"/>
+<classEntry path="com.aol.api.wim.transactions.imserv.SetIMServUserSettings"/>
+<classEntry path="com.aol.api.wim.data.IMServUserSettings"/>
+<classEntry path="com.aol.api.wim.data.types.ChatMemberType"/>
+<classEntry path="com.aol.api.wim.data.IMServIM"/>
+<classEntry path="com.aol.api.wim.transactions.imserv.DeleteIMServ"/>
+<classEntry path="com.aol.api.wim.events.IMServQueryEvent"/>
+<classEntry path="com.aol.api.wim.transactions.imserv.GetIMServMembers"/>
+<classEntry path="com.aol.api.wim.data.types.IMServActivityType"/>
+<classEntry path="com.aol.api.wim.transactions.imserv.SetIMServSettings"/>
+<classEntry path="com.aol.api.wim.transactions.imserv.RemoveIMServMembers"/>
+<classEntry path="com.aol.api.wim.transactions.imserv.CreateIMServ"/>
+<classEntry path="com.aol.api.wim.SessionWithIMServ"/>
+<classEntry path="com.aol.api.wim.AMFResponseParserWithIMServ"/>
+<classEntry path="com.aol.api.wim.data.IMServInfo"/>
+</includeClasses>
+<includeResources/>
+<namespaceManifests/>
+</flexLibProperties>
