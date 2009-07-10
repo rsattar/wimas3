@@ -37,6 +37,7 @@ package com.aol.api.wim {
     import com.aol.api.wim.events.DataIMEvent;
     import com.aol.api.wim.events.EventController;
     import com.aol.api.wim.events.IMEvent;
+    import com.aol.api.wim.events.LifestreamEvent;
     import com.aol.api.wim.events.SessionEvent;
     import com.aol.api.wim.events.TypingEvent;
     import com.aol.api.wim.events.UserEvent;
@@ -50,6 +51,8 @@ package com.aol.api.wim {
     import com.aol.api.wim.transactions.GetPresence;
     import com.aol.api.wim.transactions.GetSMSInfo;
     import com.aol.api.wim.transactions.RemoveBuddy;
+    import com.aol.api.wim.transactions.RemoveGroup;
+    import com.aol.api.wim.transactions.RenameGroup;
     import com.aol.api.wim.transactions.ReportSPIM;
     import com.aol.api.wim.transactions.RequestAuthorization;
     import com.aol.api.wim.transactions.SearchMemberDirectory;
@@ -63,11 +66,13 @@ package com.aol.api.wim {
     import com.aol.api.wim.transactions.SetTyping;
     
     import flash.display.DisplayObjectContainer;
+    import flash.events.ErrorEvent;
     import flash.events.Event;
     import flash.events.IEventDispatcher;
     import flash.events.IOErrorEvent;
     import flash.events.SecurityErrorEvent;
     import flash.events.TimerEvent;
+    import flash.external.ExternalInterface;
     import flash.net.ObjectEncoding;
     import flash.net.URLLoader;
     import flash.net.URLLoaderDataFormat;
@@ -116,6 +121,12 @@ package com.aol.api.wim {
         // WIM Variables
         protected static const API_BASE:String      =   "http://api.oscar.aol.com/";
         
+        /**
+         * This tracks any newly created sessions, based on the id used 
+         * TODO: How to remove items from this list if the app is shutting down?
+         */        
+        protected static var g_allSessions:Array     =   [];
+        
         
         /**
         *  URL Limt.  This is set on login based on the browser's abilities.  This value is important because
@@ -151,6 +162,13 @@ package com.aol.api.wim {
          */
         protected var _authBaseURL:String           =   null;
         
+        /** 
+         * 
+         */
+        protected var _lifestreamBaseURL:String = null;
+
+
+
         /**
          * Represents whether we are authenticated
          * 
@@ -449,7 +467,7 @@ package com.aol.api.wim {
         public function Session(stageOrContainer:DisplayObjectContainer, developerKey:String,
                                    clientName:String=null, clientVersion:String=null, 
                                    logger:ILog=null, wimBaseURL:String=null, authBaseURL:String=null,
-                                   language:String="en-us") {
+                                   lifestreamBaseURL:String=null,language:String="en-us") {
                                        
             this._devId = developerKey;
             this._clientName = clientName;
@@ -469,6 +487,8 @@ package com.aol.api.wim {
             if(wimBaseURL && wimBaseURL != "") {
                 this.apiBaseURL = wimBaseURL;
             }
+            
+            _lifestreamBaseURL = lifestreamBaseURL;
             
             _authBaseURL = authBaseURL;
             
@@ -552,12 +572,20 @@ package com.aol.api.wim {
                 _logger.error("signOn: no password specified");
                 return;
             }
+            // remove ourselves from _allSession if we have a previous _username
+            if(this._username != null)
+            {
+                delete g_allSessions[this._username];
+            }
             // Initiate a clientLogin and do a signed start session
             this._username = user;
             this._password = pass;
             this._challengeAnswer = challengeAnswer;
             this._forceCaptcha = forceCaptcha;
             this._getLongTermToken = getLongTermToken;
+            
+            // add ourselves to the _allSessions hash
+            g_allSessions[user] = this;
             
             // Fire a sessionevent that is that we are authenticating
             this.sessionState = SessionState.AUTHENTICATING;
@@ -590,7 +618,8 @@ package com.aol.api.wim {
                 _auth.addEventListener(IOErrorEvent.IO_ERROR, handleIOError, false, 0, true);
                 _auth.addEventListener(SecurityErrorEvent.SECURITY_ERROR, handleSecurityError, false, 0, true);
             }
-            
+            // in case the devId changed (due to a later "seamless sign on", make sure the auth dev is in sync
+            _auth.devId = _devId;
             _auth.signOn(this._username, this._password, this._challengeAnswer, !this._challengeAnswer ? _forceCaptcha : false, this._getLongTermToken);
         }
         
@@ -610,10 +639,6 @@ package com.aol.api.wim {
                 _challengeAnswer = null;
                 // Start a signed session
                 this.startSignedSession(evt.token, evt.sessionKey);
-                
-               
-                
-                
             }
         }
         private function onAuthSignOut(evt:AuthEvent):void {
@@ -673,11 +698,13 @@ package com.aol.api.wim {
          * @param sessionKey The key with which we sign our request string (using sha256).
          * 
          */        
-        public function startSignedSession (authToken:AuthToken, sessionKey:String):void {
+        public function startSignedSession (authToken:AuthToken, sessionKey:String, devId:String=null):void {
             resetTimers();
             // For now, store the params internally - this needs to be marshalled out as part of event data
             _token  = authToken;
             _sessionKey = sessionKey;
+            // we might be replacing the devId here with something different.
+            if(devId) _devId = devId;
             // Set our state to STARTING
             this.sessionState = SessionState.STARTING;
             // Dispatch a capturable SESSION_STARTING event
@@ -706,16 +733,22 @@ package com.aol.api.wim {
             // Set up params in alphabetical order
             queryString += "a="+_token.a;
             if(assertCapabilities)
-            queryString += "&assertCaps=" + encodeStrPart(assertCapabilities.join(","));
-            queryString += "&clientName="+encodeStrPart(_clientName);
-            queryString += "&clientVersion="+encodeStrPart(_clientVersion);
-            queryString += "&events="+encodeStrPart("myInfo,presence,buddylist,typing,im,dataIM,offlineIM,userAddedToBuddyList");
+            {
+                queryString += "&assertCaps=" + ResultLoader.encodeStrPart(assertCapabilities.join(","));
+            }
+            queryString += "&clientName="+ResultLoader.encodeStrPart(_clientName);
+            queryString += "&clientVersion="+ResultLoader.encodeStrPart(_clientVersion);
+            queryString += "&events="+ResultLoader.encodeStrPart("myInfo,presence,buddylist,typing,im,sentIM,dataIM,offlineIM,userAddedToBuddyList,lifestream");
+//            queryString += "&events="+ResultLoader.encodeStrPart("myInfo,presence,buddylist,typing,im,sentIM,dataIM,offlineIM,userAddedToBuddyList");
             queryString += "&f=xml";
 
-            if(interestedCapabilities) queryString += "&interestCaps=" + encodeStrPart(interestedCapabilities.join(","));
+            if(interestedCapabilities) queryString += "&interestCaps=" + ResultLoader.encodeStrPart(interestedCapabilities.join(","));
             if(_initialUserState == "invisible") queryString += "&invisible=true";
             queryString += "&k="+_devId;
             queryString += "&language="+_language;
+            
+            // parameter to request rawMsg's in FetchEvents
+            queryString += "&rawMsg=1";
             
             var now:Number = new Date().getTime() / 1000;           
             //_logger.debug("Host Time: {0}, Now: {1}", _token.hostTime, now);
@@ -730,7 +763,7 @@ package com.aol.api.wim {
         
         
             // Generate OAuth Signature Base
-            var sigBase:String = "GET&"+encodeStrPart(apiBaseURL + method)+"&"+encodedQuery;
+            var sigBase:String = "GET&"+ResultLoader.encodeStrPart(apiBaseURL + method)+"&"+encodedQuery;
             //_logger.debug("Signature Base : "+sigBase);
             // Generate hash signature
             var sigData:String = (new HMAC()).SHA256_S_Base64(_sessionKey, sigBase);
@@ -739,15 +772,8 @@ package com.aol.api.wim {
 
             // Append the sig_sha256 data
             queryString += "&sig_sha256="+encodeURIComponent(sig_sha256);
-            _logger.debug("StartSessionQuery: "+queryString);
+            //_logger.debug("StartSessionQuery: "+queryString);
             sendRequest(apiBaseURL + method + "?"+queryString, startSessionResponse);
-        }
-                
-        private function encodeStrPart(s:String):String {
-            var r:String = encodeURIComponent(s);
-            r = r.replace(/\+/, "%2B");
-            r = r.replace(/_/, "%5F");
-            return r;
         }
         
         private function startSessionResponse(evt:Event):void {
@@ -856,7 +882,7 @@ package com.aol.api.wim {
             {
                 queryString += "&friendly="+_anonymousDisplayName;
             }
-            _logger.debug("StartAnonymousSessionQuery: "+queryString);
+            //_logger.debug("StartAnonymousSessionQuery: "+queryString);
             sendRequest(apiBaseURL + method + "?"+queryString, startSessionResponse);
         }
         
@@ -879,7 +905,7 @@ package com.aol.api.wim {
                sessionState == SessionState.STARTING )
             {
                 var query:String = generateSignOffURL();
-                _logger.debug("EndSessionQuery: "+query);
+                //_logger.debug("EndSessionQuery: "+query);
                 sendRequest(query, signOffResponse);
             }
             if(sessionState != SessionState.ONLINE)
@@ -964,6 +990,121 @@ package com.aol.api.wim {
                 "&aimsid=" + _aimsid;
         }
 
+
+
+        ////////////////////////////////////////////////////////////////////////
+        // lifestream functions
+        ////////////////////////////////////////////////////////////////////////        
+        public function getLifesteam():void {
+               var lifestreamurl:String = _lifestreamBaseURL + "lifestream/getAggregated";
+//                trace("lifestreamurl: " + lifestreamurl);
+//                var lifestreamurl:String = "http://api.lifestream.aol.com/lifestream/getAggregated";
+//                var lifestreamurl:String = "http://reddev-l23.tred.aol.com:8000/lifestream/getAggregated";
+                var loader:ResultLoader = createURLLoader();
+                var queryString:String = "";
+                var sig_sha256:String = "";
+                
+                // Set up params in alphabetical order
+                queryString += "a="+  authToken.a;
+                // hoping that cacheflag = 3 will defeat the IE6 stream error issue
+                // queryString += "&cacheflag=3";
+                
+                queryString += "&f=json";
+                queryString += "&k="+devId;            
+                queryString += "&ts="+ authToken.hostTime;
+    
+                //var encodedQuery:String = escape(queryString);
+                var encodedQuery:String = escape(queryString);
+            
+                // Generate OAuth Signature Base
+                var sigBase:String = "GET&"+encodeURIComponent(lifestreamurl)+"&"+encodedQuery;
+                //_logger.debug("Signature Base : "+sigBase);
+                // Generate hash signature
+                var sigData:String = (new HMAC()).SHA256_S_Base64(sessionKey, sigBase);
+                sig_sha256 = sigData;
+                //_logger.debug("Signature Hash : "+encodeURIComponent(sig_sha256));
+    
+                // Append the sig_sha256 data
+                queryString += "&sig_sha256="+encodeURIComponent(sig_sha256);
+                
+                
+                //_logger.debug("client2Web Query: "+queryString);
+                
+                var theRequest:URLRequest = new URLRequest(lifestreamurl + "?" + queryString);
+                
+                loader.addEventListener(Event.COMPLETE, onGotLifeStream, false, 0, true);
+                loader.addEventListener(IOErrorEvent.IO_ERROR, onGotLifestreamError);
+                
+                _logger.debug("final lifestream URL: " + lifestreamurl + "?" + queryString);
+                // note that we do not add a listener for "complete", since client2web is just a fire and forget
+                // also, using weak references to listeners because we don't track the loader object
+                loader.load(theRequest);
+        
+        }
+
+
+        /**
+         * Handles the returned data from a fetchEvents request
+         * 
+         * @private
+         */
+        protected function onGotLifeStream(evt:Event):void {
+            var loader:ResultLoader = ResultLoader(evt.target);
+            
+            clearLoader();
+
+
+                     
+//            var response:Object = getResponseObject(loader.data);
+            var response:Object = ExternalInterface.call("function( ) { return " + loader.data + ".response;}");            
+            // TODO: We are presently evaling the json through external interface
+            // as only json and xml are supported formats.
+            if(response == null) {
+                _logger.error("getlifestream could not parse response");
+                return;
+            }
+            
+            var statusCode:uint = response.statusCode;
+            var statusText:String = response.statusText;
+            
+            /*
+            if(statusCode != 200) 
+            {
+                _logger.debug("fetchEvents response: {0} ", response);
+            }
+            */
+            
+            if(statusCode == 200) {
+                
+                
+                dispatchEvent(new LifestreamEvent(LifestreamEvent.STREAMRECEIVED, response.data, true, true));
+                
+                
+            } else if(statusCode == 460) {
+                // We have an invalid aimsid (perhaps because we were disconnected for a while and during a success reconnect we
+                // get told that our session has expired.
+                
+                // Attempt start the session again (with the same auth token that we have)
+
+                if((_numLoginRetries < maxReloginAttempts) || (maxReloginAttempts == -1))
+                {
+                    _numLoginRetries++;
+                    _logger.debug("Invalid aimsid during fetchEvents, attempting startSession");
+                    resetTimers();
+                    startSignedSession(this._token, this._sessionKey);                  
+                } else {
+                    // We're out of retries.
+                    _logger.debug("fetchEventsResponse: Max number of login retries reached ("+maxReloginAttempts+", retries="+_numLoginRetries+"), abandoning reconnect, switching to DISCONNECTED");
+                    this.sessionState = SessionState.DISCONNECTED; 
+                }
+                
+            } else {
+                _logger.error("Error during fetchEvents!!");
+            }
+        }
+
+
+
         ////////////////////////////////////////////////////////////////////////
         // client2Web SSO functions
         ////////////////////////////////////////////////////////////////////////
@@ -978,7 +1119,7 @@ package com.aol.api.wim {
                 var queryString:String = "";
                 var sig_sha256:String = "";
                 
-    			_logger.debug("in doClient2WebSignOn, token is:" + authToken.a);
+    			//_logger.debug("in doClient2WebSignOn, token is:" + authToken.a);
                 // Set up params in alphabetical order
                 queryString += "a="+  authToken.a;
                 // hoping that cacheflag = 3 will defeat the IE6 stream error issue
@@ -994,21 +1135,24 @@ package com.aol.api.wim {
             
                 // Generate OAuth Signature Base
                 var sigBase:String = "GET&"+encodeURIComponent(CLIENT2WEB_URL)+"&"+encodedQuery;
-                _logger.debug("Signature Base : "+sigBase);
+                //_logger.debug("Signature Base : "+sigBase);
                 // Generate hash signature
                 var sigData:String = (new HMAC()).SHA256_S_Base64(sessionKey, sigBase);
                 sig_sha256 = sigData;
-                _logger.debug("Signature Hash : "+encodeURIComponent(sig_sha256));
+                //_logger.debug("Signature Hash : "+encodeURIComponent(sig_sha256));
     
                 // Append the sig_sha256 data
                 queryString += "&sig_sha256="+encodeURIComponent(sig_sha256);
                 
                 
-                _logger.debug("client2Web Query: "+queryString);
+                //_logger.debug("client2Web Query: "+queryString);
                 
                 var theRequest:URLRequest = new URLRequest(CLIENT2WEB_URL + "?" + queryString);
-    			_logger.debug("final client2Web URL: " + CLIENT2WEB_URL + "?" + queryString);
-                loader.addEventListener( IOErrorEvent.IO_ERROR, handleIOError );
+    			//_logger.debug("final client2Web URL: " + CLIENT2WEB_URL + "?" + queryString);
+    			// note that we do not add a listener for "complete", since client2web is just a fire and forget
+    			// also, using weak references to listeners because we don't track the loader object
+                loader.addEventListener( IOErrorEvent.IO_ERROR, onClient2WebSignOnFail, false, 0, true );
+                loader.addEventListener( SecurityErrorEvent.SECURITY_ERROR, onClient2WebSignOnFail, false, 0, true );
                 loader.load(theRequest);
                 _client2WebAuthed = true;   // set this value now so that we don't keep 
                                             // trying to sign on because an event is received.
@@ -1018,7 +1162,24 @@ package com.aol.api.wim {
         public function clearClient2WebAuthed():void
         {
         	_client2WebAuthed = false;
-        }        
+        }
+        
+
+        protected function onGotLifestreamError(evt:IOErrorEvent):void
+        {
+            var foo:String = "bar";
+            _logger.debug("getLifestream Failed with error: "+evt.type);
+            
+
+        }
+
+        protected function onClient2WebSignOnFail(evt:ErrorEvent):void
+        {
+            _logger.debug("client2Web Failed with error: "+evt.type);
+            
+            // Since Client2Web is supposed to be "fire and forget", we "forget" :) 
+            // and do nothing...
+        }
 
 
         ////////////////////////////////////////////////////////////////////////
@@ -1306,7 +1467,7 @@ package com.aol.api.wim {
                             //_logger.debug("Dispatching LIST_RECEIVED: {0}", eventData);    
                             _logger.debug("Dispatching LIST_RECEIVED");                        
                             bl.owner = _myInfo;
-                            dispatchEvent(new BuddyListEvent(BuddyListEvent.LIST_RECEIVED,null,null,bl,true,true));
+                            dispatchEvent(new BuddyListEvent(BuddyListEvent.LIST_RECEIVED,null,null,bl,null,true,true));
                             break;
                        
                         case FetchEventType.TYPING:
@@ -1318,13 +1479,22 @@ package com.aol.api.wim {
                             break;
                         
                         case FetchEventType.IM:
-                            //_logger.debug("Dispatching IM");
-                            var im:IM = _parser.parseIM(eventData);
+                            //_logger.debug("Received IM: {0}", eventData);
+                            var im:IM = _parser.parseIM(eventData, _myInfo);
                             dispatchEvent(new IMEvent(IMEvent.IM_RECEIVED, im, true, true));
                             break;
                         
+                        case FetchEventType.SENT_IM:
+                            //_logger.debug("Received Sent_IM: {0}", eventData);
+                            // For eventData.dest, 'state' may not be available
+                            var sentIM:IM = _parser.parseIM(eventData, _parser.parseUser(eventData.dest), false, false);
+                            // sentIM data doesn't include the source, because it is supposed to be us
+                            sentIM.sender = _myInfo;
+                            dispatchEvent(new IMEvent(IMEvent.IM_SENT, sentIM, true, true));
+                            break;
+                        
                         case FetchEventType.DATA_IM:
-                            //_logger.debug("TODO: Dispatch DATA_IM");
+                            //_logger.debug("Received Data_IM: {0}", eventData);
                             var dataIM:DataIM = _parser.parseDataIM(eventData);
                             dispatchEvent(new DataIMEvent(DataIMEvent.DATA_IM_RECEIVED, dataIM, true, true));
                             break;
@@ -1337,6 +1507,7 @@ package com.aol.api.wim {
                         case FetchEventType.OFFLINE_IM:
                             // Dispatch a new IMEvent.OFFLINE_IM_RECEIVED ? or just dispatch IM_RECEIVED?
                             // The IM object contains the context for whether it's offline or not
+                            //_logger.debug("Received Offline IM: {0}", eventData);
                             var offIM:IM = _parser.parseIM(eventData, _myInfo, true);
                             dispatchEvent(new IMEvent(IMEvent.IM_RECEIVED, offIM, true, true));
                             break;
@@ -1354,6 +1525,18 @@ package com.aol.api.wim {
                                 _logger.warn("Received '{0}' event, but there is no aimId", type);
                             }
                             break;
+                        
+                        case FetchEventType.LIFESTREAM:
+                            // going to extract the actual lifestream event json object here
+                            // and convert it to an object.  could do this in the lifestreamevent or the 
+                            // manager, but I'd like to do all of the goofy json stuff in one place so that
+                            // it's easier to take out later if we need to
+                            if(eventData.activity) {
+                                var activityObj:Object = ExternalInterface.call("function( ) { return " + eventData.activity + ";}");            
+                                dispatchEvent(new LifestreamEvent(LifestreamEvent.ACTIVITYRECEIVED,activityObj,true,true));
+                                _logger.debug("We got a lifestream event, how exciting!");                        
+                            }
+                        break;
                         
                         default:
                             _logger.warn("Received an unknown type of event, type is: "+type);
@@ -1801,6 +1984,28 @@ package com.aol.api.wim {
             transaction.run(buddyName, groupName);
         }
         
+        public function removeGroup(groupName:String):void {
+            var transaction:RemoveGroup;
+            if(!_transactions.removeGroup) {
+               transaction = new RemoveGroup(this);
+               _transactions.removeGroup = transaction;
+            } else {
+                transaction = _transactions.removeGroup as RemoveGroup;
+            }
+            transaction.run(groupName);
+        }
+        
+        public function renameGroup(oldGroupName:String, newGroupName:String):void {
+            var transaction:RenameGroup;
+            if(!_transactions.renameGroup) {
+               transaction = new RenameGroup(this);
+               _transactions.renameGroup = transaction;
+            } else {
+                transaction = _transactions.renameGroup as RenameGroup;
+            }
+            transaction.run(oldGroupName, newGroupName);
+        }
+        
         public function reportSPIM(buddyName:String, type:String="spim", event:String="user", comment:String=null):void
         {
             var transaction:ReportSPIM;
@@ -2194,6 +2399,16 @@ package com.aol.api.wim {
             else if(timeout > maximumFetchTimeOutMs) timeout = maximumFetchTimeOutMs;
             
             _fetchRequestTimeoutMs = timeout;
+        }
+        
+        // ALL Sessions Management ///////////////////////////////////////////////
+        public static function getSessionForUserId(userId:String):Session
+        {
+            if(userId)
+            {
+                return g_allSessions[userId];
+            }
+            return null;
         }
         
         // Utility functions /////////////////////////////////////////////////////
