@@ -158,8 +158,14 @@ package com.aol.api.wim.data {
         
         public function get userType():String
         {
-            if(_userType)
+            // We specifically check for "imserv" type because this is not handed down to us through host (yet)
+            if(aimId.charAt(0) == "[" && aimId.charAt(aimId.length-1) == "]")
             {
+                return UserType.IMSERV;
+            }
+            else if(_userType)
+            {
+                // return whatever host says this user is
                 return _userType;
             }
             else
@@ -198,6 +204,18 @@ package com.aol.api.wim.data {
         
         public function equals(other:User):Boolean {
             return (other.aimId == aimId);
+        }
+        
+        /**
+         * Convenience constructor, useful for when we are creating User objects to be passed around 
+         * @param aimId
+         * 
+         */        
+        public function User(aimId:String = null, state:String=null):void
+        {
+            this.aimId = aimId;
+            this.state = state;
+            super();
         }
     }
 }
