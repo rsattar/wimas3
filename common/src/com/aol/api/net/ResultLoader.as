@@ -157,5 +157,20 @@ package com.aol.api.net {
                 maxTimeoutTimer.stop();
             }
         }
+        
+        // Loading Utilities /////////////////////////////////
+        /**
+         * For most AOL api calls (WIM, ClientLogin), to encode the string involves also encoding
+         * some extra characters 
+         * @param s
+         * @return 
+         * 
+         */        
+        public static function encodeStrPart(s:String):String {
+            var r:String = encodeURIComponent(s);
+            r = r.replace(/\+/, "%2B");
+            //r = r.replace(/_/, "%5F");
+            return r;
+        }
     }
 }
