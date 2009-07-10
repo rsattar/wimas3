@@ -1,5 +1,6 @@
 package com.aol.api.wim.transactions
 {
+    import com.aol.api.net.ResultLoader;
     import com.aol.api.openauth.AuthToken;
     import com.aol.api.wim.Session;
     import com.aol.api.wim.data.ResultData;
@@ -54,7 +55,7 @@ package com.aol.api.wim.transactions
         
         
             // Generate OAuth Signature Base
-            var sigBase:String = "GET&"+encodeStrPart(_session.apiBaseURL + method)+"&"+encodedQuery;
+            var sigBase:String = "GET&"+ResultLoader.encodeStrPart(_session.apiBaseURL + method)+"&"+encodedQuery;
             //_logger.debug("Signature Base : "+sigBase);
             // Generate hash signature
             var sigData:String = generateSignature(sigBase, _session.sessionKey);//(new HMAC()).SHA256_S_Base64(_sessionKey, sigBase);
