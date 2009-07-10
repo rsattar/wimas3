@@ -28,19 +28,19 @@ package com.aol.api.wim.data
         public var carrierId:int    =   -1;
         
         /**
-         * Number of SMS messages user is allowed to send for this balance group 
+         * Number of SMS messages user is allowed to send for this balance group (should be a uint, but apparently you can receive negative values)
          */        
-        public var remainingCount:uint   =   0;
+        public var remainingCount:int   =   0;
         
         /**
          * Max size of an SMS message containing only ASCII characters 
          */        
-        public var maxAsciiLength:uint  =   0;
+        public var maxAsciiLength:int  =   0;
         
         /**
          * Max size of an SMS message containing any non-ASCII characters 
          */        
-        public var maxUnicodeLength:uint    =   0;
+        public var maxUnicodeLength:int    =   0;
         
         /**
          * Name of the carrier for the destination number 
