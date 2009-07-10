@@ -59,6 +59,24 @@ public class Base64 {
         
         return output.substring(0, output.length - padding.length) + padding;
     }
+    
+    /**
+     * String goes in, Base64 String comes out.
+     */
+    public static function encodeString(value:String):String {
+        if(!value) return null;
+        // Convert string to byteArray
+        var byteArray:ByteArray = new ByteArray();
+        byteArray.writeUTFBytes(value);
+        // encode() function takes an int array, so convert byteArray to int array
+        var array:Array = new Array();
+        byteArray.position = 0;
+        while(byteArray.bytesAvailable)
+        {
+            array.push(byteArray.readUnsignedByte());
+        }
+        return encode(array);
+    }
 
     private static var _chars:Array = new Array(
         'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',

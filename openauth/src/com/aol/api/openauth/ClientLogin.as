@@ -53,7 +53,7 @@ package com.aol.api.openauth
         private var screenName:String            = null; 
         private var password:String              = null; 
         
-        private var devId:String                 = null;
+        private var _devId:String                = null;
         private var clientName:String            = null;
         private var clientVersion:String         = null;   
         private var language:String              = null;
@@ -204,7 +204,7 @@ package com.aol.api.openauth
             vars.cacheflag = 3;
             
             // Package up POST data
-            _logger.debug("ClientLogin: " + vars.toString());
+            //_logger.debug("ClientLogin: " + vars.toString());
             
             statusCode           = null;
             statusDetailCode     = null;
@@ -224,25 +224,25 @@ package com.aol.api.openauth
             var loader:ResultLoader = createURLLoader();
             
             var queryString:String = "a="+token.a;
-            queryString += "&devId="+encodeStrPart(devId);
+            queryString += "&devId="+ResultLoader.encodeStrPart(devId);
             queryString += "&f=xml";
                         
             var encodedQuery:String = encodeURIComponent(queryString);
             
-            _logger.debug("SignOff QueryParams    : "+queryString);
-            _logger.debug("Session Key    : "+sessionKey);
+            //_logger.debug("SignOff QueryParams    : "+queryString);
+            //_logger.debug("Session Key    : "+sessionKey);
         
         
             // Generate OAuth Signature Base
-            var sigBase:String = "GET&"+encodeStrPart(apiBaseURL + OFF_METHOD)+"&"+encodedQuery;
-            _logger.debug("Signature Base : "+sigBase);
+            var sigBase:String = "GET&"+ResultLoader.encodeStrPart(apiBaseURL + OFF_METHOD)+"&"+encodedQuery;
+            //_logger.debug("Signature Base : "+sigBase);
             // Generate hash signature
             var sig_sha256:String = (new HMAC()).SHA256_S_Base64(sessionKey, sigBase);
-            _logger.debug("Signature Hash : "+encodeURIComponent(sig_sha256));
+            //_logger.debug("Signature Hash : "+encodeURIComponent(sig_sha256));
 
             // Append the sig_sha256 data
             queryString += "&sig_sha256="+encodeURIComponent(sig_sha256);
-            _logger.debug("FinalQuery     : "+queryString);
+            //_logger.debug("FinalQuery     : "+queryString);
             
             
             var theRequest:URLRequest = new URLRequest(apiBaseURL + OFF_METHOD + "?" + queryString);
@@ -257,13 +257,6 @@ package com.aol.api.openauth
         private function encodeString(s:String):String {
             var r:String = encodeURI(s);
             r = r.replace(/\+/, "%2B");
-            return r;
-        }
-                
-        private function encodeStrPart(s:String):String {
-            var r:String = encodeURIComponent(s);
-            r = r.replace(/\+/, "%2B");
-            r = r.replace(/_/, "%5F");
             return r;
         }
 
@@ -353,15 +346,15 @@ package com.aol.api.openauth
                 _icqEmailRetry = true;
                 _logger.info("ONS signin failed.  Retrying as ICQ email address.");
                 signOn(screenName, password);
-            } else if (statusDetailCode == "3011" || statusDetailCode == "3012" || statusDetailCode == "3015") {
+            } else if (statusDetailCode == "3011" || statusDetailCode == "3012" || statusDetailCode == "3013" || statusDetailCode == "3015" || statusDetailCode == "3019") {
                 _icqEmailRetry = false;
                 dispatchEvent(new AuthEvent(AuthEvent.CHALLENGE, Number(statusCode), statusText, Number(statusDetailCode), null, null, challengeContext, challengeUrl, info));
             } else if (statusCode == "200") {
                 // Create authDigest of password and sessionSecret. This is used as a key for signing future requests.
-                _logger.debug("[DEBUG] sessionSecret:" + sessionSecret);
+                //_logger.debug("[DEBUG] sessionSecret:" + sessionSecret);
                 var sessionKey:String = new HMAC().SHA256_S_Base64(password, sessionSecret);
                 
-                _logger.debug("Digest of SHA256(password, sessionSecret) is: "+sessionKey);
+                //_logger.debug("Digest of SHA256(password, sessionSecret) is: "+sessionKey);
                 dispatchEvent(new AuthEvent(AuthEvent.LOGIN, Number(statusCode), statusText, Number(statusDetailCode), new AuthToken(tokenStr, Number(expiresIn), hostTime, clientTime), sessionKey, challengeContext, info));
                 
                 
@@ -417,27 +410,27 @@ package com.aol.api.openauth
             var url:String = this.client2WebURL;
 
             var queryString:String = "a="+token;
-            queryString += "&k="+encodeStrPart(devId);
+            queryString += "&k="+ResultLoader.encodeStrPart(devId);
             queryString += "&entryType=client2Web";
             queryString += "&f=xml";
             queryString += "&ts=" + (new Date().time/1000);
            
             var encodedQuery:String = encodeURIComponent(queryString);
             
-            _logger.debug("signOn2Web QueryParams    : "+queryString);
-            _logger.debug("Session Key    : "+sessionKey);
+            //_logger.debug("signOn2Web QueryParams    : "+queryString);
+            //_logger.debug("Session Key    : "+sessionKey);
         
             // Generate OAuth Signature Base
-            var sigBase:String = "GET&"+encodeStrPart(url)+"&"+encodedQuery;
-            _logger.debug("Signature Base : "+sigBase);
+            var sigBase:String = "GET&"+ResultLoader.encodeStrPart(url)+"&"+encodedQuery;
+            //_logger.debug("Signature Base : "+sigBase);
             // Generate hash signature
             var sig_sha256:String = (new HMAC()).SHA256_S_Base64(sessionKey, sigBase);
 
-            _logger.debug("Signature Hash : "+encodeURIComponent(sig_sha256));
+            //_logger.debug("Signature Hash : "+encodeURIComponent(sig_sha256));
 
             // Append the sig_sha256 data
             queryString += "&sig_sha256="+encodeURIComponent(sig_sha256);
-            _logger.debug("FinalQuery     : "+queryString);
+            //_logger.debug("FinalQuery     : "+queryString);
             
             
             var theRequest:URLRequest = new URLRequest(url + "?" + queryString);
@@ -454,6 +447,14 @@ package com.aol.api.openauth
             _logger.debug("signOnClient2WebResponse:\n"+data);
         }
 
-
+        public function get devId():String
+        {
+            return _devId;
+        }
+        
+        public function set devId(value:String):void
+        {
+            _devId = value;
+        }
     }
 }
