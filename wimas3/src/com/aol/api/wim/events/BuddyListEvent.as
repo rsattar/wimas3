@@ -25,7 +25,7 @@ package com.aol.api.wim.events
      * added, removed, or moved on the buddy list. 
      */
 
-    public class BuddyListEvent extends Event
+    public class BuddyListEvent extends TransactionEvent
 	{
         /**
          * This event fires when a full buddy list is received. 
@@ -50,13 +50,33 @@ package com.aol.api.wim.events
         public static const BUDDY_REMOVE_RESULT:String = "buddyRemoved";
 
         /**
+         * This event is fired before a group is added using AddGroup.
+         * It is not fired if the group is being added as part of AddBuddy (with a new group param) 
+         */
+        public static const GROUP_ADDING:String     = "groupAdding";
+        /**
          * The value for the type property of a group added event object. 
+         * It is not fired if the group was added as part of AddBuddy (with a new group param) 
          */
         public static const GROUP_ADD_RESULT:String = "groupAddResult";
+        
+        /**
+         * This event is fired before a group is removed from the BuddyList 
+         */        
+        public static const GROUP_REMOVING:String   =   "groupRemoving";
         /**
          * The value for the type property of a group removed event object. 
          */
         public static const GROUP_REMOVE_RESULT:String = "groupRemoveResult";
+        
+        /**
+         * This event is fired before a group is renamed
+         */        
+        public static const GROUP_RENAMING:String   =   "groupRenaming";
+        /**
+         * The value for the type property of a group renamed event object. 
+         */
+        public static const GROUP_RENAME_RESULT:String = "groupRenameResult";
 
         /**
          * The buddy associated with the event. Only valid for buddy added, buddy moved, and buddy removed events.
@@ -71,6 +91,11 @@ package com.aol.api.wim.events
          * This is null for the LIST_RECEIVED event.
          */        
         public var group:Group;
+        
+        /**
+         * Used only by RenameGroup. If a group is renamed, this will hold a reference to the group before it was renamed 
+         */        
+        public var oldGroup:Group;
         
         /**
          * @private
@@ -90,14 +115,9 @@ package com.aol.api.wim.events
          */
         public var buddyList:BuddyList;
         
-        /**
-         * The status code of the response from the server. 
-         */
-        public var statusCode:Number;
-        
-        public function BuddyListEvent(type:String, buddy:User, group:Group, buddyList:BuddyList=null, bubbles:Boolean=false, cancelable:Boolean=false)
+        public function BuddyListEvent(type:String, buddy:User, group:Group, buddyList:BuddyList=null, optionalContext:Object=null, bubbles:Boolean=false, cancelable:Boolean=false)
         {
-            super(type, bubbles, cancelable);
+            super(type, optionalContext, bubbles, cancelable);
             this.buddy = buddy;
             this.group = group;
             this.buddyList = buddyList;
@@ -105,7 +125,7 @@ package com.aol.api.wim.events
 
         override public function clone():Event
         {
-            return new BuddyListEvent(type, buddy, group, buddyList, bubbles, cancelable);
+            return new BuddyListEvent(type, buddy, group, buddyList, context, bubbles, cancelable);
         }
         
         override public function toString():String
@@ -114,7 +134,6 @@ package com.aol.api.wim.events
                                 " buddy=" + buddy.toString() + 
                                 ", group=" + group.toString() +
                                 ", buddyList" + buddyList.toString() + 
-                                ", statusCode" + statusCode.toString() +                                 
                                 "]";
             return output; 
         }

@@ -34,7 +34,7 @@ package com.aol.api.wim.transactions {
             var buddy:User = new User();
             buddy.aimId = buddyName;
             var group:Group = new Group(groupName);
-            dispatchEvent(new BuddyListEvent(BuddyListEvent.BUDDY_REMOVING, buddy, group, null, true, true));
+            dispatchEvent(new BuddyListEvent(BuddyListEvent.BUDDY_REMOVING, buddy, group, null, null, true, true));
         }
         
         private function doBuddyRemove(evt:BuddyListEvent):void {
@@ -60,7 +60,7 @@ package com.aol.api.wim.transactions {
             //get the old event so we can create the new event
             var oldEvent:BuddyListEvent = getRequest(requestId) as BuddyListEvent;
             if(statusCode == 200) {
-                var newEvent:BuddyListEvent = new BuddyListEvent(BuddyListEvent.BUDDY_REMOVE_RESULT, oldEvent.buddy, oldEvent.group, null, true, true);
+                var newEvent:BuddyListEvent = new BuddyListEvent(BuddyListEvent.BUDDY_REMOVE_RESULT, oldEvent.buddy, oldEvent.group, null, null, true, true);
                 dispatchEvent(newEvent);
             }                 
         }

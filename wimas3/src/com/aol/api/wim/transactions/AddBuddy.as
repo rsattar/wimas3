@@ -15,6 +15,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 package com.aol.api.wim.transactions {
     import com.aol.api.wim.Session;
     import com.aol.api.wim.data.Group;
+    import com.aol.api.wim.data.ResultData;
     import com.aol.api.wim.data.User;
     import com.aol.api.wim.events.BuddyListEvent;
     
@@ -34,7 +35,7 @@ package com.aol.api.wim.transactions {
             var user:User = new User();
             user.aimId = buddyName;
             var group:Group = new Group(groupName);
-            var evt:BuddyListEvent = new BuddyListEvent(BuddyListEvent.BUDDY_ADDING, user, group, null, true, true);
+            var evt:BuddyListEvent = new BuddyListEvent(BuddyListEvent.BUDDY_ADDING, user, group, null, null, true, true);
             if(authorizationMsg)
                 evt.authorizationMsg = authorizationMsg;
             evt.preAuthorized = preAuthorized;
@@ -65,11 +66,12 @@ package com.aol.api.wim.transactions {
             _logger.debug("AddBuddy Response: \n{0}", _response);
             
             var statusCode:uint = _response.statusCode;
+            var statusText:String = _response.statusText;
             var requestId:uint = _response.requestId;
             //get the old event so we can create the new event
             var oldEvent:BuddyListEvent = getRequest(requestId) as BuddyListEvent;
             var newEvent:BuddyListEvent = new BuddyListEvent(BuddyListEvent.BUDDY_ADD_RESULT, oldEvent.buddy, oldEvent.group, null, true, true);
-            newEvent.statusCode = statusCode;
+            newEvent.resultData = new ResultData(statusCode, statusText);
             dispatchEvent(newEvent);                
         }
     }

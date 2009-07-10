@@ -73,7 +73,7 @@ package com.aol.api.wim.transactions
                     var paramName:String = !_session.isAnonymous ? "&t=" : "&tw=";
                     for(var i:int=0; i<usernames.length; i++)
                     {
-                        query += paramName + usernames[i];
+                        query += paramName + encodeURIComponent(usernames[i]);
                     }
                 }
                 if(options)
@@ -122,7 +122,7 @@ package com.aol.api.wim.transactions
                         var bl:BuddyList = parser.parseBuddyList(_response.data);
                         _logger.debug("Dispatching LIST_RECEIVED (during GetPresence)");                        
                         bl.owner = _session.myInfo;
-                        dispatchEvent(new BuddyListEvent(BuddyListEvent.LIST_RECEIVED,null,null,bl,true,true));
+                        dispatchEvent(new BuddyListEvent(BuddyListEvent.LIST_RECEIVED,null,null,bl,null,true,true));
                     }
                 } 
             }
