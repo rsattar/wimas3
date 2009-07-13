@@ -66,7 +66,18 @@ package com.aol.api.wim.data
         /**
          * If not null, contains raw message information about the sender's country code, as well as a base64 encoded raw message block 
          */        
-        public var rawMessageData:IMRawMessageData;        
+        public var rawMessageData:IMRawMessageData;   
+        
+        /**
+         * Default is null. Can be "imservMsg" or "imservWirelessMsg"
+         */
+        public var specialIMType:String;     
+        
+        /**
+         * Stores optional, contextual information about the type of IM this is, such as more detailed info about IMServ IMs
+         * NOTE: should we move IMServIMInfo to the wimas3 project, so that we can access it even without requiring wimas3_imserv? --Riz 
+         */        
+        public var specialIMInfo:*;
         
         public function IM(message:String, timestamp:Date, sender:User, recipient:User, incoming:Boolean, isAutoResponse:Boolean=false, isOfflineMessage:Boolean=false, isArchivedMessage:Boolean=false)
         {
