@@ -62,6 +62,7 @@ package com.aol.api.wim
             */
             if(data.hasOwnProperty("imserv"))
             {
+                /* Disabled this code because this spec seems like it's changing right now
                 var imservIMInfo:IMServIM = new IMServIM(basicIM.message, basicIM.timestamp, null, data.imserv);
                 if(data.specialData && data.specialData.rid1011)
                 {
@@ -70,7 +71,7 @@ package com.aol.api.wim
                 
                 basicIM.specialIMType = data.specialIM;
                 basicIM.specialIMInfo = imservIMInfo;
-                
+                */
                 return basicIM;
             }
             else
