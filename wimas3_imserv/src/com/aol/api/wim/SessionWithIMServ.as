@@ -22,9 +22,9 @@ package com.aol.api.wim
 
     public class SessionWithIMServ extends Session
     {
-        public function SessionWithIMServ(stageOrContainer:DisplayObjectContainer, developerKey:String, clientName:String=null, clientVersion:String=null, logger:ILog=null, wimBaseURL:String=null, authBaseURL:String=null, language:String="en-us")
+        public function SessionWithIMServ(stageOrContainer:DisplayObjectContainer, developerKey:String, clientName:String=null, clientVersion:String=null, logger:ILog=null, wimBaseURL:String=null, authBaseURL:String=null, lifestreamBaseURL:String=null, language:String="en-us")
         {
-            super(stageOrContainer, developerKey, clientName, clientVersion, logger, wimBaseURL, authBaseURL, language);
+            super(stageOrContainer, developerKey, clientName, clientVersion, logger, wimBaseURL, authBaseURL, lifestreamBaseURL, language);
             // Update our parser
             this._parser = new AMFResponseParserWithIMServ();
         }

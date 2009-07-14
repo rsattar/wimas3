@@ -72,7 +72,6 @@ package com.aol.api.wim {
     import flash.events.IOErrorEvent;
     import flash.events.SecurityErrorEvent;
     import flash.events.TimerEvent;
-    import flash.external.ExternalInterface;
     import flash.net.ObjectEncoding;
     import flash.net.URLLoader;
     import flash.net.URLLoaderDataFormat;
@@ -995,6 +994,7 @@ package com.aol.api.wim {
         ////////////////////////////////////////////////////////////////////////
         // lifestream functions
         ////////////////////////////////////////////////////////////////////////        
+        /*
         public function getLifesteam():void {
                var lifestreamurl:String = _lifestreamBaseURL + "lifestream/getAggregated";
 //                trace("lifestreamurl: " + lifestreamurl);
@@ -1041,13 +1041,14 @@ package com.aol.api.wim {
                 loader.load(theRequest);
         
         }
-
+        */
 
         /**
          * Handles the returned data from a fetchEvents request
          * 
          * @private
          */
+        /*
         protected function onGotLifeStream(evt:Event):void {
             var loader:ResultLoader = ResultLoader(evt.target);
             
@@ -1066,13 +1067,6 @@ package com.aol.api.wim {
             
             var statusCode:uint = response.statusCode;
             var statusText:String = response.statusText;
-            
-            /*
-            if(statusCode != 200) 
-            {
-                _logger.debug("fetchEvents response: {0} ", response);
-            }
-            */
             
             if(statusCode == 200) {
                 
@@ -1102,7 +1096,7 @@ package com.aol.api.wim {
                 _logger.error("Error during fetchEvents!!");
             }
         }
-
+        */
 
 
         ////////////////////////////////////////////////////////////////////////
@@ -1527,6 +1521,7 @@ package com.aol.api.wim {
                             break;
                         
                         case FetchEventType.LIFESTREAM:
+                            /*
                             // going to extract the actual lifestream event json object here
                             // and convert it to an object.  could do this in the lifestreamevent or the 
                             // manager, but I'd like to do all of the goofy json stuff in one place so that
@@ -1536,6 +1531,7 @@ package com.aol.api.wim {
                                 dispatchEvent(new LifestreamEvent(LifestreamEvent.ACTIVITYRECEIVED,activityObj,true,true));
                                 _logger.debug("We got a lifestream event, how exciting!");                        
                             }
+                            */
                         break;
                         
                         default:
